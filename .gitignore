@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.reference/
+.local/
+.wrangler/
+.dev.vars
+.env
+.env.*
+.dev.vars.*
+sidequest.config.json
+sidequest.recovery.json
+*.config.json.backup
+*.credentials.json
+*.tsbuildinfo
+plugins/*/office.config.json
+test-results/

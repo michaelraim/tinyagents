@@ -1,0 +1,13 @@
+{
+  "name": "tinyagents",
+  "owner": {
+    "name": "Michael Raim"
+  },
+  "plugins": [
+    {
+      "name": "sidequest-office",
+      "source": "./plugins/claude",
+      "description": "A living office for your coding agents."
+    }
+  ]
+}
