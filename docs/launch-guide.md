@@ -12,12 +12,28 @@ Every push to **main** runs checks on Windows and Linux. When both pass, GitHub 
 
 See progress under [GitHub Actions](https://github.com/michaelraim/tinyagents/actions).
 
-## Connect your agents
+## On your current Windows computer
+
+Your private office has been created. This computer is paired, and the Tinyagents observer is installed for both Codex and Claude Code. The connection check to Cloudflare passed.
+
+What is left for you:
+
+1. Restart Codex and Claude Code.
+2. Check **/hooks** in each client. Enable **sidequest-office** and review/trust its hooks when asked.
+3. Start a new task in a project. Open the website to watch its agent appear.
+4. Back up `%USERPROFILE%\.sidequest\recovery.json` somewhere private. You need it to open this office in another browser, replace keys, or delete the office.
+
+The pairing file is `%USERPROFILE%\.sidequest\config.json`. Both clients use it. Do not upload either file to GitHub or share it publicly.
+
+The observer packages were tested against the live server. Your first real task after restarting is still needed to confirm that each client is actually running its hooks. This existing chat does not gain new hooks halfway through a session.
+
+## For everyone else, or another computer
 
 1. Open the website and click **Connect agents → New office**.
-2. Save the **recovery file** and **connection file**. Keep both private.
+2. Save the recovery and connection files.
 3. Follow the [short connection guide](https://tinyagents.michael-325.workers.dev/setup.html). It has copyable commands for Windows, macOS, Linux, Codex and Claude Code.
-4. Restart the coding clients, review/trust their hooks, and start a task.
+
+To use your existing office on another computer, copy your private connection file there and pair that computer using the same guide. Use your recovery file to sign into the website.
 
 You need Node.js 22.18 or newer on the computer where the agents run. If an agent runs inside WSL or on another computer, pair it there too. This version supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot run the local observer.
 
