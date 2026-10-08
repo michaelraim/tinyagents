@@ -1,4 +1,4 @@
-name: Verify
+name: Verify and deploy
 on:
   push:
     branches: [main]
@@ -22,3 +22,39 @@ jobs:
       - run: npm ci
       - run: npm run verify
       - run: npm audit
+  deploy:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check this is still the newest main commit
+        id: latest
+        run: |
+          git fetch origin main
+          if [ "$GITHUB_SHA" = "$(git rev-parse origin/main)" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.latest.outputs.current == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+        if: steps.latest.outputs.current == 'true'
+      - run: npm run build
+        if: steps.latest.outputs.current == 'true'
+      - name: Deploy to Cloudflare
+        if: steps.latest.outputs.current == 'true'
+        run: npx wrangler deploy --var BUILD_SHA:$GITHUB_SHA
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Check the live website
+        if: steps.latest.outputs.current == 'true'
+        run: node scripts/check-deployment.mjs https://tinyagents.michael-325.workers.dev "$GITHUB_SHA"

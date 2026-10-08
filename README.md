@@ -1,8 +1,10 @@
 # Sidequest — an office for your coding agents
 
-A working alpha of a living Three.js coworking office for Codex and Claude Code. The attached reference video informed the cutaway rooms, miniature furniture, and expressive coworkers; all geometry here is original procedural Three.js geometry.
+A public beta of a living Three.js coworking office for Codex and Claude Code. A reference video informed the cutaway rooms, miniature furniture, and expressive coworkers; all geometry here is original procedural Three.js geometry.
 
-**Deploy and connect your real agents:** follow the [launch and connection guide](docs/launch-guide.md). Hosting is Cloudflare Workers + Static Assets + SQLite Durable Objects. This repository includes persistent Codex/Claude marketplaces and automated Windows/Linux verification. Current scope is a private, invite-only alpha.
+**[Open your office](https://tinyagents.michael-325.workers.dev)** · **[Connect your agents](https://tinyagents.michael-325.workers.dev/setup.html)** · **[Owner checklist](docs/launch-guide.md)**
+
+Anyone can create an office; its activity is private. Cloudflare Workers serves the website and SQLite Durable Objects store office state. Every push to main deploys automatically after Windows and Linux checks pass.
 
 ## Run it
 
@@ -35,7 +37,7 @@ Choose **Connect agents → Create my office**. Save the connection file and vie
 - Poke, snack, and cheer reactions. These are visual interactions and do not send prompts or influence the real agent.
 - Local hook normalization, bounded disk outbox, automatic next-hook retries, manual flush/optional retry watcher, authenticated pairing diagnostics, WebSocket snapshots, and persistence.
 - Generated Codex and Claude plugin folders and zip downloads, using a shared dependency-free Node observer.
-- A deployable Cloudflare Worker with one SQLite-backed Durable Object per office, hibernatable WebSockets, stored state, and invite-gated office creation.
+- A Cloudflare Worker with one SQLite-backed Durable Object per office, hibernatable WebSockets, stored state, public registration with rate limits, recovery keys, key replacement, and office deletion.
 
 ## Verify
 
@@ -52,24 +54,23 @@ The kit is procedural and reuses construction families across verticals; it is n
 
 ## Deploy on Cloudflare
 
-Cloudflare is the initial target because Durable Objects provide an office-sized state and WebSocket boundary with a free-tier SQLite option. Free does not mean unlimited: monitor request, write, storage, and duration limits. No Cloudflare resources have been provisioned just by running this project.
+The live app is deployed by GitHub Actions on pushes to main. See [operations](docs/operations.md) for configuration and limits. For a separate self-hosted deployment, choose a Worker name and authenticate to your own Cloudflare account:
 
 ```sh
 npx wrangler login
 npm run deploy
-npx wrangler secret put REGISTRATION_KEY
 ```
 
-Choose a private invite value for REGISTRATION_KEY. Users enter it when creating an office. The app generates separate ingest and viewer keys; viewer cookies are HttpOnly, SameSite=Strict, and Secure on the hosted Worker. WebSockets use the viewer cookie rather than exposing a secret in their URL. Configure the connection file from the hosted app, not the local demo URL. No third-party model API key is required.
+Registration is public by default. Each office receives separate ingest, viewer and recovery keys. Viewer cookies are HttpOnly, SameSite=Strict, and Secure on the hosted Worker. WebSockets use the viewer cookie rather than exposing a secret in their URL. Configure the connection file from the hosted app, not the local demo URL. No third-party model API key is required.
 
 To exercise the real Worker locally:
 
 ```sh
 npm run build
-npx wrangler dev --port 8788 --var REGISTRATION_KEY:local-test-invite
+npx wrangler dev --port 8788
 ```
 
-Then open its printed URL and use that local test invite. This runs the same Durable Object implementation as deployment.
+Then open its printed URL. This runs the same Durable Object implementation as deployment.
 
 ## Plugin configuration
 
@@ -97,7 +98,7 @@ Edit `bridge/` and `scripts/build-plugins.mjs`, then run `npm run plugins:build`
 
 ## Current limits
 
-This is a runnable alpha, not a released multi-user SaaS or published marketplace plugin. The live integration has been exercised with hook-shaped fixtures through the real transport; host plugin installation still needs validation inside real Codex and Claude Code sessions on each supported OS.
+This is a public beta distributed through this repository's plugin marketplaces. Live integration is exercised with hook-shaped fixtures through real transport; full event coverage still depends on the installed coding client and its hook settings.
 
 - Codex hooks require explicit trust. Both clients can install from this repository's marketplaces; this is not a public-directory listing. Local execution is the supported initial scope. Cloud-orchestrated sessions cannot use this local command-hook observer.
 - The mirror shows only observed events. It does not discover every pre-existing session or read transcripts. Some tool paths are not hook-visible. A silent agent becomes “Away” with its last observation after five minutes; this is uncertainty, not proof that the process exited.
@@ -105,7 +106,7 @@ This is a runnable alpha, not a released multi-user SaaS or published marketplac
 - Root-session parentage is used when a subagent event lacks an explicit parent ID. Fine-grained nested parentage and subagent tool attribution depend on host payload coverage. The observer does not fabricate them.
 - The outbox holds 256 normalized events and flushes up to 20 on each subsequent hook. Run `node bridge/office.mjs flush` to retry manually, or `node bridge/office.mjs watch` for retries while its terminal stays open. There is no automatically installed background service or agent heartbeat.
 - The office retains 160 agent records, 80 activity entries, and 1,024 recent event IDs. Larger organizations need virtualization, lifecycle archival, and stronger long-term event deduplication.
-- Invite keys and viewer credentials are an alpha pairing mechanism. Account login, device management, token revocation/rotation, deletion controls, distributed abuse controls, and billing are required before a public launch.
+- Offices use keys instead of email accounts. Recovery, key replacement and deletion are available. Device-specific keys, stronger abuse controls and large-scale load testing remain future work. Monitor Cloudflare usage as the service grows.
 - Room mood is configured, not inferred by uploading private project content. Idle movement is an illustration and does not imply a physical task or hidden model thought.
 - No real agent control, approvals, prompt replies, terminal streaming, token usage, or cost estimates are implemented. The inspector offers visibility and harmless reactions.
 

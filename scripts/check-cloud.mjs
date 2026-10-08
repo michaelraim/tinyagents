@@ -23,7 +23,7 @@ try {
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   if (!ready) throw new Error('Local Worker did not start. ' + log);
-  const smoke = spawn(process.execPath, ['scripts/smoke-worker.mjs'], { stdio: 'inherit', windowsHide: true, env: { ...process.env, TEST_WORKER_URL: url, TEST_WORKER_INVITE: 'local-test-invite' } });
+  const smoke = spawn(process.execPath, ['scripts/smoke-worker.mjs'], { stdio: 'inherit', windowsHide: true, env: { ...process.env, TEST_WORKER_URL: url, TEST_WORKER_INVITE: 'local-test-invite', TEST_RATE_LIMIT: 'true' } });
   const [code] = await once(smoke, 'exit');
   if (code !== 0) throw new Error('Cloudflare acceptance failed');
 } finally {

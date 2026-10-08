@@ -19,3 +19,4 @@
 @media(min-width:761px){.campus-perks{top:auto;bottom:128px;right:24px;width:184px;padding:12px}.campus-perks>small{display:none}.campus-perks>div{gap:5px;margin-bottom:0}.campus-perks button{width:34px;height:34px;font-size:17px}.campus-perks>span{font-size:8px}}
 @media(min-width:1051px){.campus-perks{bottom:28px}}
 @media(max-width:1050px){.campus-perks{display:none}}
+.connect-dialog .delete-office{margin-top:20px;border-top:1px solid #c4b9a9;padding-top:14px}.delete-office summary{cursor:pointer;color:#985b4c}.delete-office p{font-size:12px;line-height:1.6;margin:12px 0}.connect-dialog input[type=file]{font-size:11px}.connect-dialog .full{margin-top:14px}.connect-dialog a:hover{text-decoration:underline}

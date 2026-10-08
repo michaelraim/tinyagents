@@ -1,0 +1,109 @@
+# Tinyagents operations
+
+The owner-facing checklist is in [launch-guide.md](launch-guide.md). End-user setup is served at [/setup.html](https://tinyagents.michael-325.workers.dev/setup.html).
+
+## Runtime
+
+- Cloudflare Worker: `tinyagents`
+- Website: `https://tinyagents.michael-325.workers.dev`
+- Static assets: Vite's `dist/`, with API requests routed to the Worker first.
+- State: one SQLite Durable Object per office, binding `OFFICES`, class `Office`.
+- Live updates: cookie-authenticated, hibernatable WebSockets.
+- Public registration: `PUBLIC_SIGNUP=true` in `wrangler.jsonc`.
+- No external database, R2 bucket, AI API keys or always-on Node server is required.
+
+Do not rename the Worker or Durable Object binding casually; doing so can select different state.
+
+## Deployment
+
+Push to main. The Verify and deploy workflow waits for both Windows and Linux verification, skips an outdated commit if main has moved, deploys with the GitHub Actions secrets, and checks the public URL. Pull requests run verification only.
+
+GitHub repository secrets: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The deployment job uses the `production` environment. A manual Deploy to Cloudflare workflow is available for retries.
+
+The current temporary deployment token expires on 16 October 2026 at 02:59 Israel time. Replacing this secret does not change office credentials.
+
+For a manual deployment from an authenticated terminal:
+
+```sh
+npm ci
+npm run deploy
+```
+
+Do not commit tokens, private connection/recovery files, `.env`, `.dev.vars`, `.local/`, or `.wrangler/`. Account login can use `npx wrangler login`; CI uses its encrypted secret.
+
+If a deployment breaks the UI, revert the offending commit and push main again. Inspect GitHub Actions for failed verification, deployment or health steps. Keep storage schema changes backward-compatible before using Worker rollbacks.
+
+## Registration and authentication
+
+A new office returns four values: its ID, ingest key, viewer key and owner/recovery key. Only key hashes are persisted server-side.
+
+- Ingest key: write normalized activity and probe the connection.
+- Viewer key: read office state.
+- Owner/recovery key: read, replace all keys and delete the office.
+- The cookie is HttpOnly, SameSite=Strict and Secure on the hosted Worker.
+- Keys never appear in WebSocket query strings.
+- Key replacement invalidates all previous keys, preserves office state and closes old viewer sockets.
+- Deletion clears that office's durable storage and closes its sockets.
+
+Users manage keys and deletion through Connect agents → Manage. Pre-0.3 local offices do not have a recovery key; create a new local office to use management. No such old office was deployed to this public Worker.
+
+For a temporary signup pause, change `PUBLIC_SIGNUP` to `false`. Without `REGISTRATION_KEY`, registration then returns 503. If an invite is desired for a separate deployment, add `REGISTRATION_KEY` as a Worker secret. Existing office access continues.
+
+## Public API
+
+| Method | Route | Credential |
+| --- | --- | --- |
+| GET | /api/health | None |
+| POST | /api/offices | None in public mode |
+| POST | /api/session | Office ID and viewer/recovery key in JSON |
+| POST | /api/connection | Ingest bearer key + X-Office-Id |
+| POST | /api/events | Ingest bearer key + X-Office-Id |
+| GET | /api/snapshot?office=ID | Viewer cookie |
+| GET | /api/stream?office=ID | Viewer cookie, WebSocket upgrade |
+| POST | /api/keys?office=ID | Recovery bearer key |
+| DELETE | /api/office?office=ID | Recovery bearer key |
+
+Origin checks reject cross-site browser requests. Ingestion uses a strict schema and a 64 KiB request limit. Observers never forward raw prompts, tool arguments or results.
+
+## Limits and monitoring
+
+Signup is limited to 5 requests per minute per connecting IP; recovery/session management is limited to 30. Cloudflare's rate-limit binding is approximate and local to a data center, not a global quota or full bot defense. Shared networks may temporarily share a limit. The app does not store IPs in office records.
+
+Each office accepts up to 600 ingestion batches per minute and 10 viewer sockets. Each batch has at most 20 events. State retains 160 agents, 80 activity entries and 1,024 deduplication IDs.
+
+Local observers hold up to 256 events, discard events older than seven days and retry on future hooks. The optional `watch` command retries every five seconds. It is not installed as an OS service.
+
+Watch Worker requests, errors and Durable Object usage in Cloudflare. Free-tier limits still apply. No large-public-load test has been performed. Account-based quotas, stronger abuse controls, long-term history, and device-specific key management are future work. An operator can inspect stored metadata; this is not end-to-end encrypted storage.
+
+## Development and checks
+
+```sh
+npm ci
+npm run verify
+npm audit
+```
+
+Verification builds plugin downloads and the frontend, checks TypeScript, runs tests, performs a Worker dry run, then starts an isolated local Worker and tests signup, real observer processes, private office isolation, hierarchy, WebSockets, queue retry, recovery, rotation and deletion.
+
+```sh
+npm run dev
+npm run bridge
+```
+
+Run those in separate terminals to use the UI on port 5187 and the local bridge on port 8787. Or run `npm run build` then `npm run cloud:dev` to inspect the actual Worker implementation on port 8788.
+
+The read-only production check is:
+
+```sh
+node scripts/check-deployment.mjs https://tinyagents.michael-325.workers.dev
+```
+
+`scripts/smoke-worker.mjs` creates temporary offices and deletes them after its checks. Point it at production only for an intentional acceptance run, not on every deployment.
+
+## Plugin and asset updates
+
+Change observer source under `bridge/`; do not edit generated copies in `plugins/`. Bump the version in `scripts/build-plugins.mjs` for plugin updates. `npm run build` rebuilds both client packages.
+
+Change voxel recipes under `shared/`, then run `npm run assets:build`. Generated models, previews and packs are committed.
+
+Local hooks need client enablement and trust. Codex cloud-orchestrated sessions cannot execute the local observer. Host event coverage varies: a missing parent falls back to the root session, and no hook is evidence of missing telemetry, not proof that an agent is idle.

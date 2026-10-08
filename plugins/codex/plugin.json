@@ -1,8 +1,11 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "sidequest-office",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A living office for your coding agents. Metadata-only activity observer.",
+  "author": {
+    "name": "Michael Raim"
+  },
   "extensions": {
     "com.openai": {
       "hooks": "./hooks/hooks.json"

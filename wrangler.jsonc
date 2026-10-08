@@ -1,8 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "sidequest-office",
+  "name": "tinyagents",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
+  "vars": { "PUBLIC_SIGNUP": "true" },
+  "ratelimits": [
+    { "name": "SIGNUP_LIMITER", "namespace_id": "481527101", "simple": { "limit": 5, "period": 60 } },
+    { "name": "AUTH_LIMITER", "namespace_id": "481527102", "simple": { "limit": 30, "period": 60 } }
+  ],
   "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "durable_objects": { "bindings": [{ "name": "OFFICES", "class_name": "Office" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Office"] }],

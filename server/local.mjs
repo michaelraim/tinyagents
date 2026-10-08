@@ -2,7 +2,7 @@ import http from 'node:http';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { WebSocketServer } from 'ws';
 import { emptyOffice, applyEvent } from '../shared/protocol.ts';
-import { batchSchema, digest, matches, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security.ts';
+import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security.ts';
 
 const port = Number(process.env.PORT || 8787);
 const dataDir = process.env.SIDEQUEST_DATA_DIR || '.local';
@@ -22,7 +22,9 @@ function json(res, status, payload, headers = {}) { res.writeHead(status, { 'Con
 async function body(req) {
   let size = 0; const chunks = [];
   for await (const chunk of req) { size += chunk.length; if (size > 65536) throw new Error('Body too large'); chunks.push(chunk); }
-  return JSON.parse(Buffer.concat(chunks).toString());
+  const parsed = JSON.parse(Buffer.concat(chunks).toString());
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new SyntaxError('Invalid body');
+  return parsed;
 }
 function officeFrom(req, url) {
   const id = String(req.headers['x-office-id'] || url.searchParams.get('office') || '');
@@ -40,7 +42,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${port}`);
   if (!allowed(req)) return json(res, 403, { error: 'Origin not allowed' });
   try {
-    if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, storage: 'local', registration: true });
+    if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, storage: 'local', registration: true, publicSignup: true });
     if (req.method === 'POST' && url.pathname === '/api/connection') {
       const { record } = officeFrom(req, url);
       if (!record || !await matches(String(req.headers.authorization ?? '').replace(/^Bearer /, ''), record.ingestHash)) return json(res, 401, { error: 'Invalid ingest credentials' });
@@ -49,17 +51,31 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/offices') {
       if (limited('create', 10)) return json(res, 429, { error: 'Please wait before creating another office.' });
       await body(req);
-      const officeId = crypto.randomUUID(), ingestKey = token(), viewerKey = token();
-      offices[officeId] = { ingestHash: await digest(ingestKey), viewerHash: await digest(viewerKey), office: emptyOffice() };
+      const officeId = crypto.randomUUID(), ingestKey = token(), viewerKey = token(), ownerKey = token();
+      offices[officeId] = { ingestHash: await digest(ingestKey), viewerHash: await digest(viewerKey), ownerHash: await digest(ownerKey), office: emptyOffice() };
       await save();
-      return json(res, 201, { officeId, ingestKey, viewerKey }, { 'Set-Cookie': viewerCookie(officeId, viewerKey, false) });
+      return json(res, 201, { officeId, ingestKey, viewerKey, ownerKey }, { 'Set-Cookie': viewerCookie(officeId, viewerKey, false) });
     }
     if (req.method === 'POST' && url.pathname === '/api/session') {
       if (limited('login', 30)) return json(res, 429, { error: 'Too many attempts. Try again in a minute.' });
       const input = await body(req), officeId = String(input.officeId ?? '');
       const record = officeIdPattern.test(officeId) ? offices[officeId] : null;
-      if (!record || !await matches(String(input.viewerKey ?? ''), record.viewerHash)) return json(res, 401, { error: 'Office ID or viewer key is incorrect.' });
+      if (!record || !await canView(String(input.viewerKey ?? ''), record)) return json(res, 401, { error: 'Office ID or viewer key is incorrect.' });
       return json(res, 200, { ok: true }, { 'Set-Cookie': viewerCookie(officeId, input.viewerKey, false) });
+    }
+    if ((req.method === 'POST' && url.pathname === '/api/keys') || (req.method === 'DELETE' && url.pathname === '/api/office')) {
+      const id = url.searchParams.get('office') || '', record = officeIdPattern.test(id) ? offices[id] : null;
+      if (limited('manage', 30) || !record || !await matches(String(req.headers.authorization ?? '').replace(/^Bearer /, ''), record.ownerHash ?? '')) return json(res, 401, { error: 'The recovery key is required.' });
+      if (req.method === 'DELETE') {
+        delete offices[id]; await save();
+        for (const ws of sockets.clients) if (ws.officeId === id) ws.close(1000, 'Office deleted');
+        return json(res, 200, { ok: true }, { 'Set-Cookie': 'sidequest=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0' });
+      }
+      const ingestKey = token(), viewerKey = token(), ownerKey = token();
+      record.ingestHash = await digest(ingestKey); record.viewerHash = await digest(viewerKey); record.ownerHash = await digest(ownerKey);
+      await save();
+      for (const ws of sockets.clients) if (ws.officeId === id) ws.close(1000, 'Keys replaced');
+      return json(res, 200, { officeId: id, ingestKey, viewerKey, ownerKey }, { 'Set-Cookie': viewerCookie(id, viewerKey, false) });
     }
     if (req.method === 'POST' && url.pathname === '/api/events') {
       const { id, record } = officeFrom(req, url);
@@ -73,7 +89,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/snapshot') {
       const { id, record } = officeFrom(req, url);
-      if (!record || !await matches(viewerFromCookie(req.headers.cookie ?? '', id), record.viewerHash)) return json(res, 401, { error: 'Viewer authentication required' });
+      if (!record || !await canView(viewerFromCookie(req.headers.cookie ?? '', id), record)) return json(res, 401, { error: 'Viewer authentication required' });
       return json(res, 200, record.office);
     }
     return json(res, 404, { error: 'Not found' });
@@ -84,7 +100,7 @@ const server = http.createServer(async (req, res) => {
 });
 server.on('upgrade', async (req, socket, head) => {
   const url = new URL(req.url, `http://127.0.0.1:${port}`), { id, record } = officeFrom(req, url);
-  if (!allowed(req) || url.pathname !== '/api/stream' || !record || !await matches(viewerFromCookie(req.headers.cookie ?? '', id), record.viewerHash)) { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
+  if (!allowed(req) || url.pathname !== '/api/stream' || !record || !await canView(viewerFromCookie(req.headers.cookie ?? '', id), record)) { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
   sockets.handleUpgrade(req, socket, head, ws => { ws.officeId = id; ws.send(JSON.stringify({ type: 'snapshot', office: record.office })); ws.on('message', message => { if (String(message) === 'ping') ws.send('pong'); }); ws.on('error', () => {}); });
 });
 server.listen(port, '127.0.0.1', () => console.log(`Sidequest bridge ready at http://127.0.0.1:${port} (loopback only)`));

@@ -70,5 +70,6 @@ export function useOffice() {
     setMode('live'); setPaused(false); setSessionEpoch(value => value + 1);
   }, []);
   const enterDemo = useCallback(() => { setOffice(createDemo()); setMode('demo'); remember('sidequest.mode', 'demo'); setConnection('Demo office'); setPaused(false); }, []);
-  return { office, mode, connection, paused, setPaused, now, enterLive, enterDemo, officeId };
+  const forgetOffice = useCallback(() => { setOfficeId(''); remember('sidequest.office', ''); enterDemo(); }, [enterDemo]);
+  return { office, mode, connection, paused, setPaused, now, enterLive, enterDemo, forgetOffice, officeId };
 }

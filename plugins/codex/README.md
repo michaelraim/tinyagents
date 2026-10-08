@@ -2,8 +2,8 @@
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
-1. Open your deployed office, choose Connect agents, and create an office with the owner's invite.
-2. Download the connection file and save the viewer recovery file privately.
+1. Open https://tinyagents.michael-325.workers.dev, choose Connect agents, and create your office. No invite needed.
+2. Download the connection file and save the recovery file privately. The recovery key lets you replace keys and delete the office.
 3. From this extracted plugin directory, pair your machine:
 
 ```sh
@@ -24,7 +24,7 @@ codex plugin add sidequest-office@tinyagents
 
 Restart Codex, enable the plugin, and review/trust its hooks through /hooks. If the installed client lacks the plugin CLI, open the cloned tinyagents repository in Codex and select Tinyagents in the plugin directory. This package supports local Codex sessions. Cloud-orchestrated sessions cannot run these local command hooks.
 
-A private GitHub repository requires GitHub access. For a local checkout, replace michaelraim/tinyagents with the absolute path to the repository (not to this plugin folder). Start a new session or submit a request; earlier sessions are not automatically discovered.
+The repository is public. For a local checkout, replace michaelraim/tinyagents with the absolute path to the repository (not to this plugin folder). Start a new session or submit a request; earlier sessions are not automatically discovered.
 
 ## Diagnostics and retry
 
@@ -44,6 +44,6 @@ Only provider, hashed project/session/agent IDs, display name, generic activity,
 
 Optional config: projectId, projectName, theme (studio/lab/garden), taskLabel, and projects (map of forward-slash cwd paths to overrides). Names and labels are shared; do not include secrets. Match projectId across worktrees to group them.
 
-Full launch, updates and troubleshooting guide: https://github.com/michaelraim/tinyagents/blob/main/docs/launch-guide.md
+Simple setup guide: https://tinyagents.michael-325.workers.dev/setup.html
 
-Disable/uninstall the plugin to stop new reports; stop watch too. Keep connection and recovery files private. This is a self-hosted alpha, not a public-directory listing.
+Disable/uninstall the plugin to stop new reports; stop watch too. Use Connect agents > Manage on the website to replace keys or delete the office. Keep connection and recovery files private. This is a public beta distributed through a GitHub marketplace, not a listing in the clients' official directories.

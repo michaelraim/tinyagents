@@ -13,6 +13,9 @@ export async function matches(secret: string, expected: string): Promise<boolean
   for (let i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ (expected.charCodeAt(i) || 0);
   return diff === 0;
 }
+export async function canView(secret: string, record: { viewerHash: string; ownerHash?: string }): Promise<boolean> {
+  return await matches(secret, record.viewerHash) || await matches(secret, record.ownerHash ?? '');
+}
 export function viewerCookie(officeId: string, key: string, secure: boolean): string {
   return `sidequest=${officeId}.${key}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=2592000${secure ? '; Secure' : ''}`;
 }

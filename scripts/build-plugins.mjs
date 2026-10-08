@@ -13,7 +13,7 @@ for (const provider of ['codex', 'claude']) {
     async: true, timeout: 3,
   }] }]]));
   files['hooks/hooks.json'] = JSON.stringify({ description: 'Sidequest activity observer. Sends allowlisted metadata only; never changes agent decisions.', hooks }, null, 2);
-  const manifest = { name: 'sidequest-office', version: '0.2.0', description: 'A living office for your coding agents. Metadata-only activity observer.' };
+  const manifest = { name: 'sidequest-office', version: '0.3.0', description: 'A living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
   if (provider === 'codex') files['plugin.json'] = JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', ...manifest, extensions: { 'com.openai': { hooks: './hooks/hooks.json' } } }, null, 2);
   else files['.claude-plugin/plugin.json'] = JSON.stringify(manifest, null, 2);
   for (const file of ['emit.mjs', 'normalize.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs']) files[`scripts/${file}`] = await readFile(`bridge/${file}`, 'utf8');
@@ -21,8 +21,8 @@ for (const provider of ['codex', 'claude']) {
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
-1. Open your deployed office, choose Connect agents, and create an office with the owner's invite.
-2. Download the connection file and save the viewer recovery file privately.
+1. Open https://tinyagents.michael-325.workers.dev, choose Connect agents, and create your office. No invite needed.
+2. Download the connection file and save the recovery file privately. The recovery key lets you replace keys and delete the office.
 3. From this extracted plugin directory, pair your machine:
 
 \`\`\`sh
@@ -50,7 +50,7 @@ claude plugin install sidequest-office@tinyagents --scope user
 
 Restart Claude Code and inspect /hooks. To try this downloaded folder without a persistent install: claude --plugin-dir /absolute/path/to/this/folder.`}
 
-A private GitHub repository requires GitHub access. For a local checkout, replace michaelraim/tinyagents with the absolute path to the repository (not to this plugin folder). Start a new session or submit a request; earlier sessions are not automatically discovered.
+The repository is public. For a local checkout, replace michaelraim/tinyagents with the absolute path to the repository (not to this plugin folder). Start a new session or submit a request; earlier sessions are not automatically discovered.
 
 ## Diagnostics and retry
 
@@ -70,9 +70,9 @@ Only provider, hashed project/session/agent IDs, display name, generic activity,
 
 Optional config: projectId, projectName, theme (studio/lab/garden), taskLabel, and projects (map of forward-slash cwd paths to overrides). Names and labels are shared; do not include secrets. Match projectId across worktrees to group them.
 
-Full launch, updates and troubleshooting guide: https://github.com/michaelraim/tinyagents/blob/main/docs/launch-guide.md
+Simple setup guide: https://tinyagents.michael-325.workers.dev/setup.html
 
-Disable/uninstall the plugin to stop new reports; stop watch too. Keep connection and recovery files private. This is a self-hosted alpha, not a public-directory listing.
+Disable/uninstall the plugin to stop new reports; stop watch too. Use Connect agents > Manage on the website to replace keys or delete the office. Keep connection and recovery files private. This is a public beta distributed through a GitHub marketplace, not a listing in the clients' official directories.
 `;
   const zipFiles = {};
   for (const [filename, content] of Object.entries(files)) {

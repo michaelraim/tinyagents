@@ -61,4 +61,22 @@ describe('live office boundary', () => {
     const r = await fetch(`${base}/api/snapshot?office=${first.officeId}`, { headers: { Cookie: cookie } });
     expect((await r.json()).revision).toBe(3);
   });
+  it('lets an owner replace keys and delete an office without granting those powers to viewers', async () => {
+    const { keys, cookie: oldCookie } = await create();
+    const manage = (route: string, key: string, method = 'POST') => fetch(`${base}/api/${route}?office=${keys.officeId}`, { method, headers: { Authorization: `Bearer ${key}` } });
+    expect((await manage('keys', keys.viewerKey)).status).toBe(401);
+    expect((await manage('office', keys.ingestKey, 'DELETE')).status).toBe(401);
+    const rotated = await manage('keys', keys.ownerKey); expect(rotated.status).toBe(200);
+    const next = await rotated.json();
+    expect((await fetch(`${base}/api/connection`, { method: 'POST', headers: { 'X-Office-Id': keys.officeId, Authorization: `Bearer ${keys.ingestKey}` } })).status).toBe(401);
+    expect((await fetch(`${base}/api/snapshot?office=${keys.officeId}`, { headers: { Cookie: oldCookie } })).status).toBe(401);
+    expect((await manage('keys', keys.ownerKey)).status).toBe(401);
+    const recovered = await fetch(`${base}/api/session`, { method: 'POST', body: JSON.stringify({ officeId: keys.officeId, viewerKey: next.ownerKey }) });
+    expect(recovered.status).toBe(200);
+    expect((await manage('office', next.ownerKey, 'DELETE')).status).toBe(200);
+    expect((await fetch(`${base}/api/snapshot?office=${keys.officeId}`, { headers: { Cookie: recovered.headers.get('set-cookie')!.split(';')[0] } })).status).toBe(401);
+  });
+  it('rejects a malformed registration body', async () => {
+    expect((await fetch(`${base}/api/offices`, { method: 'POST', body: 'null' })).status).toBe(400);
+  });
 });
