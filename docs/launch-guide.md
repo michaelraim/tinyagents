@@ -2,7 +2,7 @@
 
 Website: **https://tinyagents.michael-325.workers.dev**
 
-The website is open to everyone. Anyone can create an office without an invite. Each office's activity stays private.
+The website is open to everyone. Anyone can create an office without an invite. Each office stays private until its owner opens a public visitor link.
 
 ## You do not need to set up hosting
 
@@ -38,6 +38,34 @@ To use your existing office on another computer, copy your private connection fi
 You need Node.js 22.18 or newer on the computer where the agents run. If an agent runs inside WSL or on another computer, pair it there too. This version supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot run the local observer.
 
 You do not need to give the website an OpenAI or Anthropic API key.
+
+## Share your office and visit friends
+
+1. Open **Friends → Share my office**.
+2. Choose your recovery file. Set your public office name and motto.
+3. Leave project names off for anonymous room names, or turn them on to share names and room briefs.
+4. Click **Open visitor link**, then **Copy link**. Anyone with that link can watch without an account.
+5. To stop sharing, return here and click **Close visitor link**.
+
+Your task text, tool details, source code, paths and private activity history are excluded from the visitor view. A public link still reveals character names, harnesses, hierarchy, generic work states and room themes. Already viewed information cannot be taken back.
+
+To follow someone, paste their public link into **Friends → Add friend**. Click **Visit** for their full office. Check **In my world** and **Show my neighborhood** to bring up to three offices into your view, with up to 24 characters from each.
+
+Try **Coffee summit**, **Rubber-duck debate**, **Competitive stand-up**, or **Arcade rivalry**. Characters between tasks meet in shared areas. These are visual jokes in your browser: they do not communicate between real coding agents or appear in your friend's browser. Busy agents continue their observed work. Friends are saved in this browser, not a shared address book.
+
+## Know who is working where
+
+Click a room sign or a project in the left rail. The project directory shows its name, vertical, short brief, harnesses, sessions and team hierarchy. **Edit room brief** adds a description; **Choose vertical & props** changes its theme. Publish again from Friends to share your updated decorations and brief.
+
+Characters wear their room number and color. **⌘** means Codex; **✳** means Claude. **★** marks an agent with subagents; **↳** marks a subagent. Select anyone to see their project, session, harness and reporting relationship.
+
+## Codex and Claude in the same office
+
+Both plugins already use the same connection file on this computer. You only need one office. On another computer or inside WSL, pair with that same file.
+
+The observer groups a project by its Git repository, not its display name. Codex and Claude working in the same repository share the project and keep separate sessions. Subfolders, worktrees and clones with the same Git origin also group together. Different repositories with the same name stay separate. A folder without Git is identified by its real path.
+
+For folders that should be one project despite different remotes, set the same `projectId` in each folder's configuration override. The [connection guide](https://tinyagents.michael-325.workers.dev/setup.html) has an example. Repo fingerprints change when origin changes; existing records are not automatically migrated. Updating an older observer can leave old rooms visible as away until they age out of the bounded office history.
 
 ## Replace the deployment token before it expires
 

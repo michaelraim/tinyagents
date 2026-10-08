@@ -8,12 +8,15 @@ import { Sign, Tree, Whiteboard, InteractiveProp, type WorldAction } from './Wor
 import { VoxelModel } from './VoxelModel';
 import { Character, type Reaction, type AgentPositions } from './Character';
 import { TeamSignals } from './Effects';
-import { effectiveState, summarizeAgents, teamMeta, stateMeta, type Agent, type AgentState, type Project } from '../../shared/protocol';
+import { effectiveState, summarizeAgents, teamMeta, stateMeta, agentRole, type Agent, type AgentState, type Project } from '../../shared/protocol';
 import { officePlan, type Room, type Seat, type Rect, type OfficePlan } from '../../shared/layout';
 import { OfficeSimulation } from '../../shared/simulation';
 import { verticalById, propById, suggestedVertical } from '../../shared/verticals.mjs';
+import { projectColor } from '../designs';
+import { cameraDistance, cameraFar } from '../../shared/camera';
+import { hangouts, type Hangout } from '../../shared/neighborhood';
 
-export type RoomDesign = { vertical: string; props: string[] };
+export type RoomDesign = { vertical: string; props: string[]; description?: string };
 export type Designs = Record<string, RoomDesign>;
 export type CameraAction = { type: 'in' | 'out' | 'home' | 'rotate'; id: number };
 
@@ -30,7 +33,7 @@ function Glass({size,position}:{size:[number,number,number];position:[number,num
   return <group><mesh position={position}><boxGeometry args={size}/><meshStandardMaterial color="#a3cdd0" transparent opacity={.2} roughness={.2} depthWrite={false}/></mesh><Box size={[size[0]+.02,.045,size[2]+.02]} color="#8baba7" position={[position[0],position[1]+size[1]/2,position[2]]}/></group>;
 }
 
-function RoomShell({room,color,agents,now}:{room:Room;color:string;agents:Agent[];now:number}) {
+function RoomShell({room,color,agents,now,onFocus}:{room:Room;color:string;agents:Agent[];now:number;onFocus:()=>void}) {
   const {w,d,side}=room, inner=-side*w/2, outer=side*w/2, back=d-3.65;
   const summary=summarizeAgents(agents,now),status=teamMeta[summary.status];
   return <group position={[room.x,0,room.z]}>
@@ -54,9 +57,10 @@ function RoomShell({room,color,agents,now}:{room:Room;color:string;agents:Agent[
     <Box size={[w-1,1.1,1]} color="#b69a79" position={[0,.69,-d/2+.65]}/>
     <Box size={[w-.85,.1,1.12]} color="#e8ceb0" position={[0,1.28,-d/2+.65]}/>
     {Array.from({length:Math.floor(w/1.6)},(_,i)=><group key={i}><Box size={[1.4,.79,.025]} color={i%3?'#cdb493':'#8eaca4'} position={[-w/2+1.3+i*1.6,.76,-d/2+1.16]}/><Box size={[.3,.035,.045]} color="#6c7770" position={[-w/2+1.3+i*1.6,.98,-d/2+1.2]}/></group>)}
-    <Sign text={room.first?room.name.toUpperCase():room.session.name.toUpperCase()} color="#e5e5d8" ink="#3d5b5c" width={Math.min(7.8,w-1.5)} height={.82} position={[0,3.03,-d/2+.135]}/>
+    <group onClick={e=>{e.stopPropagation();onFocus()}}><Sign text={room.name.toUpperCase()} color="#e5e5d8" ink="#3d5b5c" width={Math.min(7.8,w-1.5)} height={.82} position={[0,3.03,-d/2+.135]}/></group>
     <Sign text={`${room.first?room.session.name+' · ':''}${room.session.provider==='codex'?'CODEX':'CLAUDE CODE'}${room.annex?' · ANNEX '+room.annex:''}`} color="#e5e5d8" ink="#798a7c" width={Math.min(6,w-2)} height={.35} position={[0,2.43,-d/2+.14]}/>
     <Sign text={`${summary.running} WORKING  /  ${summary.attention} NEED INPUT  /  ${summary.counts.done} DONE`} color="#344e52" ink={status.color} width={Math.min(5.5,w-2)} height={.38} position={[0,1.88,-d/2+1.21]}/>
+    {agents[0]?.officeName && <Sign text={agents[0].officeName.toUpperCase()} color="#566d6d" ink="#fff4da" width={Math.min(5.5,w-2)} height={.28} position={[0,3.72,-d/2+.17]}/>}
   </group>;
 }
 
@@ -91,13 +95,14 @@ function Workstation({seat,agent,state,color,simulation,paused}:{seat:Seat;agent
   </group>;
 }
 
-function ProjectRoom({room,design,agents,now,simulation,paused}:{room:Room;design?:RoomDesign;agents:Map<string,Agent>;now:number;simulation:OfficeSimulation;paused:boolean}) {
-  const vertical=verticalById.get(design?.vertical??suggestedVertical(room.name))!;
+function ProjectRoom({room,design,agents,now,simulation,paused,onFocus,mark}:{room:Room;design?:RoomDesign;agents:Map<string,Agent>;now:number;simulation:OfficeSimulation;paused:boolean;onFocus:()=>void;mark:string}) {
+  const vertical=verticalById.get(design?.vertical??room.agents[0]?.project.vertical??suggestedVertical(room.name))??verticalById.get('software')!;
   const props=(design?.props??vertical.props.slice(0,8).map(p=>p.id)).map(id=>propById.get(id)).filter(Boolean);
   const members=room.agents.map(a=>agents.get(a.key)??a),[hover,setHover]=useState('');
   return <group>
     <Floor rect={room} color="#e3d7bd" wood/>
-    <RoomShell room={room} color={vertical.color} agents={members} now={now}/>
+    <RoomShell room={room} color={projectColor(room.projectId)} agents={members} now={now} onFocus={onFocus}/>
+    <group onClick={e=>{e.stopPropagation();onFocus()}}><Sign text={`${mark}  /  ${room.name.toUpperCase()}`} width={Math.min(room.w-1,8)} height={.65} color={projectColor(room.projectId)} ink="#fff9e3" position={[room.x,.18,room.z+room.d/2-.5]} rotation={[-Math.PI/2,0,0]}/></group>
     {room.seats.map(seat=>{const agent=agents.get(seat.agent.key)??seat.agent;return <Workstation key={agent.key} seat={seat} agent={agent} state={effectiveState(agent,now)} color={vertical.color} simulation={simulation} paused={paused}/>;})}
     {room.fixtures.map((f,i)=><group key={i} position={[f.x,.14,f.z]}>
       {f.kind==='printer'?<><Box size={[1.8,.98,1.5]} color="#bbc6b8" position={[0,.49,0]}/><Box size={[1.75,.1,1.5]} color="#edd4ac" position={[0,1.03,0]}/><VoxelModel family="printer" color="#536a74" position={[0,1.1,0]} scale={.72}/><Sign text="PRINT / SCAN" color="#bbc6b8" ink="#536e62" width={1.4} height={.25} position={[0,.62,.76]}/></>:f.kind==='collab'?<><Box size={[4.2,.035,3.2]} color="#b4bfb0" position={[0,.02,0]}/><Box size={[2.3,.15,1.5]} color="#ddb78e" position={[0,1.02,0]}/><Box size={[.8,.9,.8]} color="#778f89" position={[0,.47,0]}/>{[-1.5,1.5].map(x=><VoxelModel key={x} family="chair" color="#91afa8" position={[x,0,0]} rotation={[0,x>0?Math.PI/2:-Math.PI/2,0]} scale={.9}/>)}<VoxelModel family="books" color="#e0b16d" scale={.4} position={[.6,1.12,.1]}/><Plant position={[-.6,1.12,0]} scale={.5}/><Sign text="PAIRING CORNER" color="#b4bfb0" ink="#5e7b6b" width={3} height={.35} position={[0,.049,1.3]} rotation={[-Math.PI/2,0,0]}/></>:<><Box size={[2,.55,1.8]} color="#c4ac88" position={[0,.28,0]}/><VoxelModel family={props[0]?.family??'plant'} color={props[0]?.color??vertical.color} variant={props[0]?.variant??0} scale={.8} position={[0,.59,0]}/></>}
@@ -163,18 +168,20 @@ function SimulationDriver({simulation,paused,speed}:{simulation:OfficeSimulation
 function CameraRig({plan,focus,action,follow,positions}:{plan:OfficePlan;focus:string|null;action?:CameraAction;follow:string|null;positions:AgentPositions}) {
   const controls=useRef<OrbitControlsImpl>(null),{camera,size}=useThree(),desired=useRef<{target:Vector3;position:Vector3;zoom:number}|null>(null);
   const home=()=>new Vector3(plan.bounds.x,.3,plan.bounds.z),fit=()=>Math.min(size.width/(plan.bounds.w+plan.bounds.d*.6+13),size.height/(plan.bounds.d*.65+plan.bounds.w*.35+14));
+  const distant=(offset:Vector3)=>offset.normalize().multiplyScalar(cameraDistance(plan.bounds.w,plan.bounds.d,size.height));
+  useEffect(()=>{const cam=camera as OrthographicCamera;cam.near=.1;cam.far=cameraFar(plan.bounds.w,plan.bounds.d,size.height);cam.updateProjectionMatrix();},[camera,plan,size.height]);
   useEffect(()=>{
     const rooms=plan.rooms.filter(r=>r.projectId===focus);
     let target=home(),zoom=fit();
     if(rooms.length){const minX=Math.min(...rooms.map(r=>r.x-r.w/2)),maxX=Math.max(...rooms.map(r=>r.x+r.w/2)),minZ=Math.min(...rooms.map(r=>r.z-r.d/2)),maxZ=Math.max(...rooms.map(r=>r.z+r.d/2));target=new Vector3((minX+maxX)/2,.3,(minZ+maxZ)/2);zoom=Math.min(size.width/(maxX-minX+(maxZ-minZ)*.55+9),size.height/((maxZ-minZ)*.7+(maxX-minX)*.35+8));}
-    desired.current={target,position:target.clone().add(new Vector3(25,37,36)),zoom};
+    desired.current={target,position:target.clone().add(distant(new Vector3(25,37,36))),zoom};
   },[focus,plan,size.width,size.height]);
-  useEffect(()=>{if(!action||!controls.current)return;const cam=camera as OrthographicCamera,target=action.type==='home'?home():controls.current.target.clone(),offset=camera.position.clone().sub(target);if(action.type==='rotate')offset.applyAxisAngle(new Vector3(0,1,0),Math.PI/2);desired.current={target,position:action.type==='home'?target.clone().add(new Vector3(25,37,36)):target.clone().add(offset),zoom:action.type==='home'?fit():action.type==='in'||action.type==='out'?MathUtils.clamp(cam.zoom*(action.type==='in'?1.25:.8),5,140):cam.zoom};},[action]);
-  useFrame((_,dt)=>{if(follow&&positions.has(follow)){const target=positions.get(follow)!.clone().add(new Vector3(0,.8,0));desired.current={target,position:target.clone().add(new Vector3(12,13,17)),zoom:Math.min(size.width/15,size.height/13)};}if(!desired.current||!controls.current)return;const d=desired.current,blend=1-Math.exp(-dt*4),cam=camera as OrthographicCamera;camera.position.lerp(d.position,blend);controls.current.target.lerp(d.target,blend);cam.zoom=MathUtils.lerp(cam.zoom,d.zoom,blend);cam.updateProjectionMatrix();controls.current.update();if(camera.position.distanceTo(d.position)<.01&&Math.abs(cam.zoom-d.zoom)<.02)desired.current=null;});
-  return <OrbitControls ref={controls} makeDefault enableDamping minZoom={4} maxZoom={150} minPolarAngle={.2} maxPolarAngle={Math.PI/2.35} onStart={()=>{desired.current=null}}/>;
+  useEffect(()=>{if(!action||!controls.current)return;const cam=camera as OrthographicCamera,target=action.type==='home'?home():controls.current.target.clone(),offset=camera.position.clone().sub(target);if(action.type==='rotate')offset.applyAxisAngle(new Vector3(0,1,0),Math.PI/2);desired.current={target,position:action.type==='home'?target.clone().add(distant(new Vector3(25,37,36))):target.clone().add(distant(offset)),zoom:action.type==='home'?fit():action.type==='in'||action.type==='out'?MathUtils.clamp(cam.zoom*(action.type==='in'?1.25:.8),5,140):cam.zoom};},[action]);
+  useFrame((_,dt)=>{if(follow&&positions.has(follow)){const target=positions.get(follow)!.clone().add(new Vector3(0,.8,0));desired.current={target,position:target.clone().add(distant(new Vector3(12,13,17))),zoom:Math.min(size.width/15,size.height/13)};}if(!desired.current||!controls.current)return;const d=desired.current,blend=1-Math.exp(-dt*4),cam=camera as OrthographicCamera;camera.position.lerp(d.position,blend);controls.current.target.lerp(d.target,blend);cam.zoom=MathUtils.lerp(cam.zoom,d.zoom,blend);cam.updateProjectionMatrix();controls.current.update();if(camera.position.distanceTo(d.position)<.01&&Math.abs(cam.zoom-d.zoom)<.02)desired.current=null;});
+  return <OrbitControls ref={controls} makeDefault enableDamping screenSpacePanning={false} minZoom={4} maxZoom={150} minPolarAngle={.2} maxPolarAngle={Math.PI/2.35} onStart={()=>{desired.current=null}}/>;
 }
 
-export default function OfficeScene({projects,selected,onSelect,reaction,now,paused,reducedMotion,focus,action,evening,speed=1,follow=null,designs={},onWorldAction,pulses={}}:{projects:Project[];selected?:string;onSelect:(a:Agent)=>void;reaction?:Reaction;now:number;paused:boolean;reducedMotion:boolean;focus:string|null;action?:CameraAction;evening:boolean;speed?:number;follow?:string|null;designs?:Designs;onWorldAction:(a:WorldAction)=>void;pulses?:Partial<Record<WorldAction,number>>}) {
+export default function OfficeScene({projects,selected,onSelect,reaction,now,paused,reducedMotion,focus,action,evening,speed=1,follow=null,designs={},onWorldAction,pulses={},onFocus,hangout,onHangoutResult}:{projects:Project[];selected?:string;onSelect:(a:Agent)=>void;reaction?:Reaction;now:number;paused:boolean;reducedMotion:boolean;focus:string|null;action?:CameraAction;evening:boolean;speed?:number;follow?:string|null;designs?:Designs;onWorldAction:(a:WorldAction)=>void;pulses?:Partial<Record<WorldAction,number>>;onFocus:(id:string)=>void;hangout?:Hangout;onHangoutResult:(text:string)=>void}) {
   const signature=projects.map(p=>`${p.id}:${p.name}:${p.agents.map(a=>`${a.key}:${a.parentAgentId??''}`).join(',')}`).join('|');
   const prior=useRef<OfficeSimulation | undefined>(undefined);
   const plan=useMemo(()=>officePlan(projects),[signature]),simulation=useMemo(()=>new OfficeSimulation(plan,prior.current),[plan]);
@@ -182,18 +189,31 @@ export default function OfficeScene({projects,selected,onSelect,reaction,now,pau
   const agents=useMemo(()=>new Map(projects.flatMap(p=>p.agents).map(a=>[a.key,a])),[projects]);
   const positions=useMemo<AgentPositions>(()=>new Map(),[]),[contextLost,setContextLost]=useState(false),still=paused||reducedMotion;
   useEffect(()=>simulation.sync([...agents.values()],now),[simulation,agents,now]);
+  const [socialCast,setSocialCast]=useState<string[]>([]);
+  useEffect(()=>{
+    if(!hangout)return;
+    if(still){onHangoutResult('Resume the simulation with motion enabled to start a hangout.');return;}
+    const resting=[...agents.values()].filter(a=>['idle','done'].includes(effectiveState(a,now)));
+    const first=resting.find(a=>!a.visitingOfficeId)??resting[0];
+    const second=first&&resting.find(a=>(a.visitingOfficeId??'home')!==(first.visitingOfficeId??'home'));
+    if(!first||!second){setSocialCast([]);onHangoutResult('Everyone is busy. Try a hangout when two offices have someone between tasks.');return;}
+    const cast=[first.key,second.key];
+    const count=simulation.gather(cast,hangout.kind);
+    setSocialCast(count===2?cast:[]);
+    onHangoutResult(count===2?`${hangouts[hangout.kind].icon} ${first.name} + ${second.name}: ${hangouts[hangout.kind].line}`:'The shared area is busy. Try again after the current break.');
+  },[hangout?.at]);
   const b=plan.bounds;
-  return <div className="office-canvas"><Canvas shadows="percentage" orthographic camera={{position:[25,37,36],zoom:20,near:.1,far:400}} dpr={[1,1.6]} gl={{antialias:true,powerPreference:'high-performance'}} onCreated={({gl})=>{gl.domElement.addEventListener('webglcontextlost',()=>setContextLost(true));gl.domElement.addEventListener('webglcontextrestored',()=>setContextLost(false));}}>
+  return <div className="office-canvas"><Canvas shadows="percentage" orthographic camera={{position:[625,925,900],zoom:20,near:.1,far:10000}} dpr={[1,1.6]} gl={{antialias:true,powerPreference:'high-performance'}} onCreated={({gl})=>{gl.domElement.addEventListener('webglcontextlost',()=>setContextLost(true));gl.domElement.addEventListener('webglcontextrestored',()=>setContextLost(false));}}>
     <color attach="background" args={[evening?'#526a7b':'#b6cbc0']}/>
     <ambientLight intensity={evening?.4:.7} color={evening?'#bdc9e7':'#fff7e6'}/><hemisphereLight args={['#ecf2f4','#a4a88d',.85]}/>
     <directionalLight position={[-25,45,25]} intensity={evening?1.1:1.9} color={evening?'#ffcc99':'#ffedd0'} castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-60} shadow-camera-right={60} shadow-camera-top={80} shadow-camera-bottom={-80} shadow-normalBias={.035}/>
-    <mesh position={[0,-.66,0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[500,500]}/><meshStandardMaterial color={evening?'#405d68':'#a9c0b4'} roughness={1}/></mesh>
+    <mesh position={[b.x,-.66,b.z]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[20000,20000]}/><meshStandardMaterial color={evening?'#405d68':'#a9c0b4'} roughness={1}/></mesh>
     <Suspense fallback={null}>
       <SimulationDriver simulation={simulation} paused={still} speed={speed}/>
       <Box size={[b.w+5,.13,b.d+5]} color="#9db5aa" position={[b.x,-.55,b.z]}/>
       <CommonOffice plan={plan} paused={still} onAction={onWorldAction} pulses={pulses}/>
-      {plan.rooms.map(room=><ProjectRoom key={room.id} room={room} design={designs[room.projectId]} agents={agents} now={now} simulation={simulation} paused={still}/>)}
-      {[...agents.values()].map((agent,i)=><Character key={agent.key} agent={agent} state={effectiveState(agent,now)} index={agent.name.charCodeAt(0)+i} selected={selected===agent.key} onSelect={()=>onSelect(agent)} reaction={reaction?.key===agent.key?reaction:undefined} paused={paused} reducedMotion={reducedMotion} speed={speed} positions={positions} simulation={simulation}/>)}
+      {plan.rooms.map(room=><ProjectRoom key={room.id} room={room} design={designs[room.projectId]} agents={agents} now={now} simulation={simulation} paused={still} onFocus={()=>onFocus(room.projectId)} mark={String(projects.findIndex(p=>p.id===room.projectId)+1).padStart(2,'0')}/>)}
+      {[...agents.values()].map((agent,i)=><Character key={agent.key} agent={agent} state={effectiveState(agent,now)} index={agent.name.charCodeAt(0)+i} selected={selected===agent.key} onSelect={()=>onSelect(agent)} reaction={reaction?.key===agent.key?reaction:undefined} paused={paused} reducedMotion={reducedMotion} speed={speed} positions={positions} simulation={simulation} projectColor={projectColor(agent.project.id)} projectMark={String(projects.findIndex(p=>p.id===agent.project.id)+1).padStart(2,'0')} role={agentRole(agent,[...agents.values()])} socialLabel={hangout&&socialCast.includes(agent.key)&&now-hangout.at<18000&&['idle','done'].includes(effectiveState(agent,now))?`${hangouts[hangout.kind].icon} ${hangouts[hangout.kind].name}`:undefined}/>)}
       {!reducedMotion&&<TeamSignals agents={agents} positions={positions} paused={paused}/>}
       {[-1,1].map(side=><group key={side}><Tree position={[b.x+side*(b.w/2+1.8),-.47,b.z-b.d/2+2]} scale={1.25} pink={side<0} paused={still}/><Tree position={[b.x+side*(b.w/2+1.8),-.47,b.z+b.d/2-3]} scale={1.45} paused={still}/></group>)}
       <Box size={[7,.2,2]} color="#e0d4b9" position={[0,-.16,plan.reception.z+plan.reception.d/2+.9]}/>

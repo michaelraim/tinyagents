@@ -13,10 +13,10 @@ for (const provider of ['codex', 'claude']) {
     async: true, timeout: 3,
   }] }]]));
   files['hooks/hooks.json'] = JSON.stringify({ description: 'Sidequest activity observer. Sends allowlisted metadata only; never changes agent decisions.', hooks }, null, 2);
-  const manifest = { name: 'sidequest-office', version: '0.3.0', description: 'A living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
+  const manifest = { name: 'sidequest-office', version: '0.4.0', description: 'A living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
   if (provider === 'codex') files['plugin.json'] = JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', ...manifest, extensions: { 'com.openai': { hooks: './hooks/hooks.json' } } }, null, 2);
   else files['.claude-plugin/plugin.json'] = JSON.stringify(manifest, null, 2);
-  for (const file of ['emit.mjs', 'normalize.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs']) files[`scripts/${file}`] = await readFile(`bridge/${file}`, 'utf8');
+  for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs']) files[`scripts/${file}`] = await readFile(`bridge/${file}`, 'utf8');
   files['README.md'] = `# Sidequest for ${provider === 'codex' ? 'Codex' : 'Claude Code'}
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
@@ -66,9 +66,13 @@ Up to 256 events are kept for seven days. A timeout leaves them queued. Stop wat
 
 ## Privacy and configuration
 
-Only provider, hashed project/session/agent IDs, display name, generic activity, allowlisted tool name, parent link and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
+Only provider, hashed project/client/session/agent IDs, display name, generic activity, allowlisted tool name, parent link, optional room metadata and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
 
-Optional config: projectId, projectName, theme (studio/lab/garden), taskLabel, and projects (map of forward-slash cwd paths to overrides). Names and labels are shared; do not include secrets. Match projectId across worktrees to group them.
+Projects are identified by a locally hashed, normalized Git origin. SSH/HTTPS clones, subfolders and worktrees of the same remote share a project. Without a remote, the Git common directory is used; non-Git folders use their real path. Raw paths, remote URLs and remote credentials are never uploaded. Codex and Claude keep separate sessions and people inside that project.
+
+Optional config: projectId (manual grouping override), projectName (display alias), vertical, projectDescription, theme (studio/lab/garden), taskLabel, instanceId (distinct client override), and projects (map of forward-slash folder paths to overrides, including subfolders). Names and labels are shared privately with your office; do not include secrets. Use the same projectId override when related folders have different remotes. On another machine, pair with the same office connection file.
+
+Public visits are optional. Friends > Share my office on the website requires your recovery key. Public views omit task labels and tool details. Project names and briefs require a separate opt-in. Never share a connection or recovery file as a visitor link.
 
 Simple setup guide: https://tinyagents.michael-325.workers.dev/setup.html
 

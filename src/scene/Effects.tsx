@@ -41,7 +41,7 @@ export function TeamSignals({agents,positions,paused}:{agents:Map<string,Agent>;
     const next:Signal[]=[];
     for(const agent of agents.values()){
       const old=previous.current.get(agent.key);
-      const parent=agent.parentAgentId?`${agent.provider}:${agent.sessionId}:${agent.parentAgentId}`:'';
+      const parent=agent.parentAgentId?[...agents.values()].find(a=>a.agentId===agent.parentAgentId&&a.provider===agent.provider&&a.instanceId===agent.instanceId&&a.sessionId===agent.sessionId&&a.project.id===agent.project.id)?.key??'':'';
       if(parent&&agents.has(parent)&&old!==agent.state&&(old||previous.current.size)&&(!old||agent.state==='done'))next.push({id:agent.id,from:agent.state==='done'?agent.key:parent,to:agent.state==='done'?parent:agent.key,color:agent.state==='done'?'#e8d185':'#9bddce'});
     }
     previous.current=new Map([...agents.values()].map(a=>[a.key,a.state]));

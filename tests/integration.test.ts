@@ -7,11 +7,12 @@ import WebSocket from 'ws';
 import { normalizeHook } from '../bridge/normalize.mjs';
 const base = 'http://127.0.0.1:8793';
 let server: ChildProcess, directory: string;
-let first: { officeId: string; ingestKey: string; viewerKey: string }, second: typeof first;
+let serverLog = '';
+let first: { officeId: string; ingestKey: string; viewerKey: string; ownerKey: string }, second: typeof first;
 let cookie = '';
 async function create() {
   const r = await fetch(`${base}/api/offices`, { method: 'POST', body: '{}' });
-  expect(r.status).toBe(201); return { keys: await r.json(), cookie: r.headers.get('set-cookie')!.split(';')[0] };
+  expect(r.status, serverLog).toBe(201); return { keys: await r.json(), cookie: r.headers.get('set-cookie')!.split(';')[0] };
 }
 async function post(events: unknown[], key = first.ingestKey) {
   return fetch(`${base}/api/events`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'X-Office-Id': first.officeId }, body: JSON.stringify({ events }) });
@@ -19,6 +20,7 @@ async function post(events: unknown[], key = first.ingestKey) {
 beforeAll(async () => {
   await mkdir('.local', { recursive: true }); directory = await mkdtemp(resolve('.local/integration-'));
   server = spawn(process.execPath, ['server/local.mjs'], { env: { ...process.env, PORT: '8793', SIDEQUEST_DATA_DIR: directory }, stdio: 'pipe', windowsHide: true });
+  server.stderr?.on('data', chunk => { serverLog = (serverLog + chunk).slice(-2000); });
   for (let i = 0; i < 80; i++) {
     try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* Wait for process readiness. */ }
     if (i === 79) throw new Error('Bridge did not start'); await new Promise(r => setTimeout(r, 100));
@@ -60,6 +62,27 @@ describe('live office boundary', () => {
     expect((await post([{ ...e, at: Date.now() + 120000 }])).status).toBe(400);
     const r = await fetch(`${base}/api/snapshot?office=${first.officeId}`, { headers: { Cookie: cookie } });
     expect((await r.json()).revision).toBe(3);
+  });
+  it('shares only an owner-approved public projection and revokes an active visit', async () => {
+    const route = `${base}/api/share?office=${first.officeId}`;
+    const settings = {enabled:true,name:'Test public office',projectNames:false};
+    const share = (key: string, enabled = true) => fetch(route,{method:'POST',headers:{Authorization:`Bearer ${key}`},body:JSON.stringify({...settings,enabled})});
+    expect((await fetch(`${base}/api/public?office=${first.officeId}`)).status).toBe(404);
+    expect((await share(first.viewerKey)).status).toBe(401);
+    expect((await share(second.ownerKey)).status).toBe(401);
+    expect((await share(first.ownerKey)).status).toBe(200);
+    const guest = new WebSocket(`${base.replace('http:', 'ws:')}/api/public/stream?office=${first.officeId}`);
+    try {
+      const initial = once(guest,'message');await once(guest,'open');
+      const view = JSON.parse(String((await initial)[0]));
+      expect(view.office.agents).toHaveLength(2);expect(view.office.agents[0].project.name).toBe('Project 01');
+      expect(view.office.events).toEqual([]);expect(view.office.agents[0].tool).toBeUndefined();
+      const changed = once(guest,'message'), closed = once(guest,'close');
+      expect((await share(first.ownerKey,false)).status).toBe(200);
+      expect(JSON.parse(String((await changed)[0])).type).toBe('sharing_changed');await closed;
+      expect((await fetch(`${base}/api/public?office=${first.officeId}`)).status).toBe(404);
+      expect((await fetch(`${base}/api/snapshot?office=${first.officeId}`,{headers:{Cookie:cookie}})).status).toBe(200);
+    } finally { guest.terminate(); }
   });
   it('lets an owner replace keys and delete an office without granting those powers to viewers', async () => {
     const { keys, cookie: oldCookie } = await create();

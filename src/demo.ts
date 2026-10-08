@@ -1,9 +1,9 @@
 import { applyEvent, emptyOffice, type OfficeEvent, type OfficeState, type AgentState } from '../shared/protocol';
 
 const projects = [
-  { id: 'orbit', name: 'Orbit web', theme: 'studio' as const },
-  { id: 'infra', name: 'Cloud kitchen', theme: 'lab' as const },
-  { id: 'bloom', name: 'Bloom app', theme: 'garden' as const },
+  { id: 'orbit', name: 'Orbit web', theme: 'studio' as const, vertical: 'software', description: 'A collaborative web dashboard. Codex builds the product while Claude reviews its design system.' },
+  { id: 'infra', name: 'Cloud kitchen', theme: 'lab' as const, vertical: 'telecom', description: 'The realtime event platform: streams, database migrations, and reliable reconnects.' },
+  { id: 'bloom', name: 'Bloom app', theme: 'garden' as const, vertical: 'gardening', description: 'A friendly gardening companion, from first seed to a slightly overambitious balcony jungle.' },
 ];
 const cast = [
   ['milo', 'Milo', 0, 'codex', 'coding', 'Building the new dashboard', 'Polish the Orbit dashboard'],

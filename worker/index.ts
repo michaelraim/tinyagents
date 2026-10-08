@@ -1,8 +1,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
 import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security';
+import { shareSchema, privateSharing, publicOffice, type ShareSettings } from '../shared/public-office';
 interface Env { OFFICES: DurableObjectNamespace<Office>; ASSETS: Fetcher; REGISTRATION_KEY?: string; PUBLIC_SIGNUP?: string; BUILD_SHA?: string; SIGNUP_LIMITER: RateLimit; AUTH_LIMITER: RateLimit }
-type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string };
+type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings };
 const json = (data: unknown, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 async function readBytes(request: Request) {
   const reader = request.body?.getReader(); if (!reader) throw new Error('Missing body');
@@ -43,7 +44,7 @@ export default {
         await stub.initialize(await digest(ingestKey), await digest(viewerKey), await digest(ownerKey));
         return json({ officeId, ingestKey, viewerKey, ownerKey }, 201, { 'Set-Cookie': viewerCookie(officeId, viewerKey, true) });
       }
-      if (['/api/session', '/api/keys', '/api/office'].includes(url.pathname) && !(await env.AUTH_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Too many attempts. Try again in a minute.' }, 429, { 'Retry-After': '60' });
+      if (['/api/session', '/api/keys', '/api/office', '/api/share'].includes(url.pathname) && !(await env.AUTH_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Too many attempts. Try again in a minute.' }, 429, { 'Retry-After': '60' });
       if (request.method === 'POST' && url.pathname === '/api/session') {
         const { officeId, viewerKey } = await readBody(request);
         if (!officeIdPattern.test(String(officeId))) return json({ error: 'Invalid office credentials' }, 401);
@@ -51,7 +52,7 @@ export default {
         if (!await stub.login(String(viewerKey ?? ''))) return json({ error: 'Invalid office credentials or too many attempts' }, 401);
         return json({ ok: true }, 200, { 'Set-Cookie': viewerCookie(officeId, viewerKey, true) });
       }
-      if (!['/api/connection', '/api/events', '/api/snapshot', '/api/stream', '/api/keys', '/api/office'].includes(url.pathname)) return json({ error: 'Not found' }, 404);
+      if (!['/api/connection', '/api/events', '/api/snapshot', '/api/stream', '/api/keys', '/api/office', '/api/share', '/api/public', '/api/public/stream'].includes(url.pathname)) return json({ error: 'Not found' }, 404);
       const officeId = request.headers.get('X-Office-Id') || url.searchParams.get('office') || '';
       if (request.headers.has('X-Office-Id') && url.searchParams.has('office') && request.headers.get('X-Office-Id') !== url.searchParams.get('office')) return json({ error: 'Office IDs must match' }, 400);
       if (!officeIdPattern.test(officeId)) return json({ error: 'Invalid office ID' }, 400);
@@ -83,6 +84,26 @@ export class Office extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     if (!this.record) return json({ error: 'Office not found' }, 404);
     const url = new URL(request.url);
+    if (url.pathname === '/api/share' && ['GET', 'POST'].includes(request.method)) {
+      if (this.limited('logins', 30) || !await matches((request.headers.get('Authorization') || '').replace(/^Bearer /, ''), this.record.ownerHash ?? '')) return json({ error: 'The recovery key is required to change sharing.' }, 401);
+      if (request.method === 'GET') return json(this.record.sharing ?? privateSharing());
+      const parsed = shareSchema.safeParse(await readBody(request));
+      if (!parsed.success) return json({ error: 'Check the office name and sharing settings.' }, 400);
+      this.record.sharing = parsed.data;
+      await this.ctx.storage.put('state', this.record);
+      for (const ws of this.ctx.getWebSockets('public')) { ws.send(JSON.stringify({ type: 'sharing_changed' })); ws.close(1000, 'Sharing changed'); }
+      return json(parsed.data);
+    }
+    if (request.method === 'GET' && ['/api/public', '/api/public/stream'].includes(url.pathname)) {
+      if (!this.record.sharing?.enabled) return json({ error: 'This office is private or the visitor link is closed.' }, 404);
+      const view = publicOffice(this.record.office, this.record.sharing);
+      if (url.pathname === '/api/public') return json(view);
+      if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return json({ error: 'WebSocket required' }, 400);
+      if (this.ctx.getWebSockets('public').length >= 20) return json({ error: 'The visitor lounge is full. Try again shortly.' }, 429);
+      const [client, server] = Object.values(new WebSocketPair());
+      this.ctx.acceptWebSocket(server, ['public']); server.send(JSON.stringify({ type: 'snapshot', ...view }));
+      return new Response(null, { status: 101, webSocket: client });
+    }
     if ((request.method === 'POST' && url.pathname === '/api/keys') || (request.method === 'DELETE' && url.pathname === '/api/office')) {
       if (this.limited('logins', 30) || !await matches((request.headers.get('Authorization') || '').replace(/^Bearer /, ''), this.record.ownerHash ?? '')) return json({ error: 'The recovery key is required.' }, 401);
       const officeId = url.searchParams.get('office') || '';
@@ -111,16 +132,21 @@ export class Office extends DurableObject<Env> {
       for (const event of input.data.events) this.record.office = applyEvent(this.record.office, event);
       await this.ctx.storage.put('state', this.record);
       const message = JSON.stringify({ type: 'snapshot', office: this.record.office });
-      for (const ws of this.ctx.getWebSockets()) { try { ws.send(message); } catch { ws.close(1011, 'Reconnect'); } }
+      for (const ws of this.ctx.getWebSockets()) { try {
+        if (this.ctx.getTags(ws).includes('public')) {
+          if (this.record.sharing?.enabled) ws.send(JSON.stringify({ type: 'snapshot', ...publicOffice(this.record.office, this.record.sharing) }));
+        } else if (this.ctx.getTags(ws).includes('private')) ws.send(message);
+        else ws.close(1000, 'Reconnect');
+      } catch { ws.close(1011, 'Reconnect'); } }
       return json({ accepted: input.data.events.length, revision: this.record.office.revision });
     }
     const officeId = url.searchParams.get('office') || '';
     if (!await canView(viewerFromCookie(request.headers.get('Cookie') || '', officeId), this.record)) return json({ error: 'Viewer authentication required' }, 401);
     if (request.method === 'GET' && url.pathname === '/api/snapshot') return json(this.record.office);
     if (request.method === 'GET' && url.pathname === '/api/stream' && request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
-      if (this.ctx.getWebSockets().length >= 10) return json({ error: 'Too many office viewers' }, 429);
+      if (this.ctx.getWebSockets('private').length >= 10) return json({ error: 'Too many office viewers' }, 429);
       const [client, server] = Object.values(new WebSocketPair());
-      this.ctx.acceptWebSocket(server);
+      this.ctx.acceptWebSocket(server, ['private']);
       server.send(JSON.stringify({ type: 'snapshot', office: this.record.office }));
       return new Response(null, { status: 101, webSocket: client });
     }

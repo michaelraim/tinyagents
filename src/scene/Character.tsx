@@ -4,15 +4,17 @@ import { useFrame } from '@react-three/fiber';
 import { Group, MathUtils, Vector3 } from 'three';
 import { VoxelModel } from './VoxelModel';
 import { Box } from './Props';
+import { Sign } from './WorldProps';
 import { ReactionBurst, StatePulse, Footsteps } from './Effects';
 import { stateMeta, type Agent, type AgentState } from '../../shared/protocol';
 import type { OfficeSimulation } from '../../shared/simulation';
 export type Reaction = { key: string; kind: 'poke' | 'snack' | 'cheer'; at: number };
 export type AgentPositions = Map<string, Vector3>;
 
-export function Character({ agent, state, index, selected, onSelect, reaction, paused, reducedMotion, speed, positions, simulation }: {
+export function Character({ agent, state, index, selected, onSelect, reaction, paused, reducedMotion, speed, positions, simulation, projectColor, projectMark, role, socialLabel }: {
   agent: Agent; state: AgentState; index: number; selected: boolean; onSelect: () => void; reaction?: Reaction;
   paused: boolean; reducedMotion: boolean; speed: number; positions: AgentPositions; simulation: OfficeSimulation;
+  projectColor: string; projectMark: string; role: string; socialLabel?: string;
 }) {
   const root = useRef<Group>(null), body = useRef<Group>(null), head = useRef<Group>(null);
   const arms = useRef<(Group | null)[]>([]), elbows = useRef<(Group | null)[]>([]), legs = useRef<(Group | null)[]>([]), knees = useRef<(Group | null)[]>([]);
@@ -72,6 +74,7 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
   const showingReaction = reaction && Date.now() - reaction.at < 3000;
   const changed = transition > 0 && Date.now() - transition < 3000;
   return <group ref={root} onClick={e => { e.stopPropagation(); onSelect(); }} onPointerOver={e => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { setHovered(false); document.body.style.cursor = 'auto'; }}>
+    <mesh rotation={[-Math.PI/2,0,0]} position={[0,.009,0]}><ringGeometry args={[.48,.55,32]}/><meshBasicMaterial color={projectColor} transparent opacity={.75}/></mesh>
     {(selected || hovered) && <mesh rotation={[-Math.PI / 2,0,0]} position={[0,.012,0]}><ringGeometry args={[.56,.65,40]}/><meshBasicMaterial color="#ffe59b" transparent opacity={.9}/></mesh>}
     <group ref={body}>
       {[0,1].map(side => <group key={side} ref={r => { legs.current[side] = r; }} position={[side ? .2 : -.2,.62,0]}>
@@ -87,12 +90,15 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
           {side === 0 && <group ref={book} visible={false} position={[.2,-.26,.1]} rotation={[-.6,0,0]}><Box size={[.63,.08,.44]} color="#e6c774"/><Box size={[.58,.025,.4]} color="#fff4dd" position={[0,.055,0]}/></group>}
         </group>
       </group>)}
-      {agent.parentAgentId === undefined && <Box size={[.15,.15,.03]} color="#eec96a" position={[.23,1.02,.29]}/>}
+      <Box size={[.09,.18,.31]} color={projectColor} position={[-.48,1.13,0]}/>
+      <Sign text={`${agent.provider==='codex'?'⌘':'✳'} ${projectMark}`} color={projectColor} ink="#fff8e0" width={.4} height={.25} position={[.12,1.05,.31]}/>
+      {role==='Team lead' && <Sign text="★" color="#eec96a" ink="#715221" width={.22} height={.22} position={[.24,1.36,.31]}/>}
+      {agent.parentAgentId && <Sign text="↳" color="#e3e9dc" ink="#476a69" width={.21} height={.2} position={[-.19,1.07,.31]}/>}
     </group>
     {!reducedMotion && <Footsteps bodyKey={agent.key} simulation={simulation} paused={paused}/>}
     {!reducedMotion && changed && <StatePulse at={transition} color={stateMeta[state].color} paused={paused}/>}
     {!reducedMotion && (showingReaction || changed && state === 'done') && <ReactionBurst at={reaction?.at ?? transition} kind={reaction?.kind ?? 'cheer'} paused={paused}/>}
-    {(selected || hovered || changed || showingReaction) && <Html position={[0,2.7,0]} center zIndexRange={[20,0]} style={{pointerEvents:'none'}}><div className={`thought-bubble ${state === 'waiting' ? 'attention' : ''}`}>{showingReaction ? reaction?.kind === 'snack' ? '🍪 nom!' : reaction?.kind === 'poke' ? '👀 hey, you' : '💛 thank you!' : `${stateMeta[state].emoji} ${stateMeta[state].feeling}`}</div></Html>}
-    {(selected || hovered) && <Html position={[0,.02,.6]} center zIndexRange={[15,0]}><button className={`agent-label ${selected ? 'selected' : ''}`} onClick={onSelect}><i style={{background:stateMeta[state].color}}/>{agent.name}{agent.parentAgentId && <small>↳</small>}</button></Html>}
+    {(selected || hovered || changed || showingReaction || socialLabel) && <Html position={[0,2.7,0]} center zIndexRange={[20,0]} style={{pointerEvents:'none'}}><div className={`thought-bubble ${state === 'waiting' ? 'attention' : ''}`}>{socialLabel || (showingReaction ? reaction?.kind === 'snack' ? '🍪 nom!' : reaction?.kind === 'poke' ? '👀 hey, you' : '💛 thank you!' : `${stateMeta[state].emoji} ${stateMeta[state].feeling}`)}</div></Html>}
+    {(selected || hovered) && <Html position={[0,.02,.6]} center zIndexRange={[15,0]}><button className={`agent-label ${selected ? 'selected' : ''}`} onClick={onSelect}><i style={{background:projectColor}}/>{agent.name} · {agent.provider==='codex'?'⌘ Codex':'✳ Claude'}<small>{role==='Team lead'?'★':agent.parentAgentId?'↳':'●'} {projectMark} · {agent.project.name}</small></button></Html>}
   </group>;
 }

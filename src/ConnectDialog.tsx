@@ -72,7 +72,7 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted }: { onClo
     <div className="dialog-icon"><Plug size={24} /></div>
     <p className="eyebrow">MAKE YOURSELF AT HOME</p><h2>Bring your agents in.</h2>
     {!keys ? <>
-      <p className="muted">Anyone can have a little office. Your activity is private. Connect Codex, Claude Code, or both.</p>
+      <p className="muted">Anyone can have a little office. Your office starts private. Connect Codex, Claude Code, or both.</p>
       <div className="segmented">
         <button className={tab === 'new' ? 'active' : ''} onClick={() => { setTab('new'); setError(''); }}>New office</button>
         <button className={tab === 'existing' ? 'active' : ''} onClick={() => { setTab('existing'); setError(''); }}>Open office</button>

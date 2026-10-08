@@ -138,6 +138,22 @@ export class OfficeSimulation {
     this.accumulator += Math.min(delta, .15);
     while (this.accumulator >= 1 / 60) { this.step(1 / 60); this.accumulator -= 1 / 60; }
   }
+  gather(keys: string[], kind: 'coffee'|'duck'|'arcade'|'standup'): number {
+    const reserved = new Set([...this.bodies.values()].filter(b => !keys.includes(b.key) && b.target !== 'home').map(b=>b.target));
+    const invited: {body:SimBody;slot:number;path:Point[]}[] = [];
+    for (const key of keys) {
+      const body = this.bodies.get(key);
+      if (!body || !['idle','done'].includes(body.state)) return 0;
+      const slot = this.plan.socialSpots[kind].find(index=>!reserved.has(index));
+      if(slot===undefined)return 0;
+      const occupied=[...this.bodies.values()].filter(b=>!keys.includes(b.key)&&b.phase!=='walking'&&b.phase!=='away');
+      const path=this.nav.path(body,this.plan.destinations[slot],occupied);
+      if(!path.length)return 0;
+      reserved.add(slot);invited.push({body,slot,path});
+    }
+    for(const {body,slot,path} of invited){body.target=slot;body.path=path;body.phase='walking';body.stuck=0;body.bestDistance=Infinity;body.progressAge=0;body.dwell=0;}
+    return invited.length;
+  }
   private move(body: SimBody, x: number, z: number) {
     // Substeps stay smaller than the collision radius; axis sliding never tunnels through furniture.
     const n = Math.max(1, Math.ceil(Math.hypot(x - body.x, z - body.z) / .15)), dx = (x - body.x) / n, dz = (z - body.z) / n;
@@ -151,11 +167,12 @@ export class OfficeSimulation {
   private step(dt: number) {
     const bodies = [...this.bodies.values()];
     const reserved = new Set(bodies.filter(b => b.target !== 'home').map(b => b.target));
+    const social = new Set(Object.values(this.plan.socialSpots).flat());
     bodies.forEach((body, i) => {
       body.age += dt;
       const relaxing = body.state === 'idle' || body.state === 'done';
       if (relaxing && body.phase === 'desk' && body.age > 4 + i % 5) {
-        const slot = this.plan.destinations.findIndex((_, k) => !reserved.has(k));
+        const slot = this.plan.destinations.findIndex((_, k) => !reserved.has(k) && !social.has(k));
         if (slot >= 0 && this.route(body, slot)) reserved.add(slot);
       }
       if (body.phase === 'break') { body.dwell += dt; if (body.dwell > 12 + i % 7) { this.route(body, 'home'); body.dwell = 0; body.age = -10; } }

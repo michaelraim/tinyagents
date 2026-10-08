@@ -47,7 +47,11 @@ export function normalizeHook(raw, provider, config = {}, now = Date.now()) {
   }
   return {
     version: 1, id: randomUUID(), at: now, provider,
-    project: { id: projectId, name: (config.projectName || path.posix.basename(cwd) || 'My project').slice(0, 60), theme: ['studio', 'lab', 'garden'].includes(config.theme) ? config.theme : 'studio' },
+    ...(config.instanceId ? { instanceId: id(config.instanceId) } : {}),
+    project: { id: projectId, name: (config.projectName || path.posix.basename(cwd) || 'My project').slice(0, 60), theme: ['studio', 'lab', 'garden'].includes(config.theme) ? config.theme : 'studio',
+      ...(config.projectIdentity ? { identity: config.projectIdentity } : {}),
+      ...(typeof config.vertical === 'string' && /^[a-z-]{1,50}$/.test(config.vertical) ? { vertical: config.vertical } : {}),
+      ...(typeof config.projectDescription === 'string' ? { description: config.projectDescription.slice(0,180) } : {}) },
     sessionId, agentId,
     ...(raw.agent_id ? { parentAgentId: raw.parent_agent_id ? id(raw.parent_agent_id) : sessionId } : {}),
     name: names[parseInt(agentId.slice(0, 4), 16) % names.length], state, activity, phase,

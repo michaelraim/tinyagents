@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, writeFile, readdir, rm } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import WebSocket from 'ws';
 import { normalizeHook } from '../bridge/normalize.mjs';
+import { resolveProject } from '../bridge/project.mjs';
 
 const base = process.env.TEST_WORKER_URL || 'http://127.0.0.1:8788';
 const invite = process.env.TEST_WORKER_INVITE || 'local-test-invite';
@@ -16,7 +17,7 @@ const request = async (route, options = {}) => {
 const post = (route, body, headers = {}) => request(route, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 await mkdir('.local', { recursive: true });
 const directory = await mkdtemp(resolve('.local/cloud-observer-'));
-let ws;
+let ws, guest;
 const createdOffices = [];
 function run(file, args, input, env) {
   return new Promise((accept, reject) => {
@@ -87,7 +88,7 @@ try {
     assert.ok(!JSON.stringify(state).includes('NEVER_UPLOAD_THIS'));
     assert.ok(!JSON.stringify(state).includes('PRIVATE_PROMPT'));
   }
-  const child = normalizeHook({ session_id: 'acceptance-codex', cwd: '/fixture/private-repo', hook_event_name: 'SubagentStart', agent_id: 'helper' }, 'codex');
+  const child = normalizeHook({ session_id: 'acceptance-codex', cwd: '/fixture/private-repo', hook_event_name: 'SubagentStart', agent_id: 'helper' }, 'codex', resolveProject('/fixture/private-repo',config));
   let update = message(); assert.equal((await post('/api/events', { events: [child] }, headers)).status, 200);
   let snapshot = JSON.parse(String((await update)[0])).office;
   assert.equal(snapshot.agents.length, 3);
@@ -109,6 +110,34 @@ try {
   snapshot = await (await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: cookie } })).json();
   assert.equal(snapshot.agents.find(agent => agent.provider === 'claude').state, 'done');
   assert.equal(snapshot.revision, 4);
+  // Sharing is owner-controlled and exposes an allowlisted, revocable visitor view.
+  const publicRoute = `/api/public?office=${officeId}`, shareRoute = `/api/share?office=${officeId}`;
+  const sharing = {enabled:true,name:'Acceptance office',bio:'Public fixture',projectNames:false,rooms:{}};
+  assert.equal((await request(publicRoute)).status,404);
+  assert.equal((await post(shareRoute,sharing,{Authorization:`Bearer ${viewerKey}`})).status,401);
+  assert.equal((await post(shareRoute,sharing,{Authorization:`Bearer ${secondCredentials.ownerKey}`})).status,401);
+  assert.equal((await post(shareRoute,sharing,{Authorization:`Bearer ${ownerKey}`})).status,200);
+  let visitor = await (await request(publicRoute)).json();
+  assert.equal(visitor.office.agents.length,3);
+  assert.equal(visitor.office.agents[0].project.name,'Project 01');
+  assert.equal(visitor.office.agents[0].task,undefined);
+  assert.equal(visitor.office.agents[0].tool,undefined);
+  assert.deepEqual(visitor.office.events,[]); assert.deepEqual(visitor.office.seen,[]);
+  guest = new WebSocket(`${base.replace('http','ws')}/api/public/stream?office=${officeId}`);
+  const firstView=once(guest,'message',{signal:AbortSignal.timeout(10000)});await once(guest,'open');
+  visitor=JSON.parse(String((await firstView)[0]));assert.equal(visitor.profile.name,'Acceptance office');
+  const guestPong=once(guest,'message',{signal:AbortSignal.timeout(10000)});guest.send('ping');assert.equal(String((await guestPong)[0]),'pong');
+  // The same update must produce distinct private/public payloads.
+  const guestUpdate=once(guest,'message',{signal:AbortSignal.timeout(10000)});update=message();
+  assert.equal((await post('/api/events',{events:[child]},headers)).status,200);
+  assert.equal(JSON.parse(String((await update)[0])).office.agents[0].project.name,'Cloudflare acceptance');
+  const publicUpdate=JSON.parse(String((await guestUpdate)[0]));assert.equal(publicUpdate.office.agents[0].project.name,'Project 01');
+  assert.deepEqual(publicUpdate.office.events,[]);assert.equal(publicUpdate.office.agents[0].tool,undefined);
+  const sharingChanged=once(guest,'message',{signal:AbortSignal.timeout(10000)});
+  const guestClosed=once(guest,'close',{signal:AbortSignal.timeout(10000)});
+  assert.equal((await post(shareRoute,{...sharing,enabled:false},{Authorization:`Bearer ${ownerKey}`})).status,200);
+  assert.equal(JSON.parse(String((await sharingChanged)[0])).type,'sharing_changed');
+  await guestClosed;assert.equal((await request(publicRoute)).status,404);
   const ownerHeaders = key => ({ Authorization: `Bearer ${key}` });
   for (const wrongKey of [ingestKey, viewerKey, secondCredentials.ownerKey]) assert.equal((await post(`/api/keys?office=${officeId}`, {}, ownerHeaders(wrongKey))).status, 401);
   const closed = once(ws, 'close', { signal: AbortSignal.timeout(10000) });
@@ -136,6 +165,7 @@ try {
   console.log('Worker acceptance passed: public signup, both observers, private offices, hierarchy, offline retry, key replacement, recovery, deletion and WebSocket delivery.');
 } finally {
   ws?.terminate();
+  guest?.terminate();
   for (const office of createdOffices) await request(`/api/office?office=${office.officeId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${office.ownerKey}` } }).catch(() => {});
   if (resolve(directory).startsWith(resolve('.local') + sep + 'cloud-observer-')) await rm(directory, { recursive: true, force: true });
 }

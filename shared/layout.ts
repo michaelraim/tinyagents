@@ -5,7 +5,7 @@ export type Rect = Point & { w: number; d: number };
 export type Seat = Point & { agent: Agent; desk: Point; facing: number };
 export type Fixture = Rect & { kind: 'collab' | 'printer' | 'feature' };
 export type Room = Rect & { id: string; projectId: string; name: string; theme: Theme; agents: Agent[]; session: Session; annex: number; first: boolean; side: number; doorZ: number; seats: Seat[]; fixtures: Fixture[] };
-export type OfficePlan = { rooms: Room[]; hall: Rect; lounge: Rect; reception: Rect; meeting: Rect; quiet?: Rect; bounds: Rect; floors: Rect[]; obstacles: Rect[]; destinations: Point[] };
+export type OfficePlan = { rooms: Room[]; hall: Rect; lounge: Rect; reception: Rect; meeting: Rect; quiet?: Rect; bounds: Rect; floors: Rect[]; obstacles: Rect[]; destinations: Point[]; socialSpots: Record<'coffee'|'duck'|'arcade'|'standup', number[]> };
 
 export function layoutRooms(projects: Project[]): Room[] {
   const cursors = [-17, -17], rooms: Room[] = [];
@@ -75,6 +75,11 @@ export function officePlan(projects: Project[]): OfficePlan {
     obstacles.push({x:quiet.x,z:quiet.z-quiet.d/2+1.6,w:7.2,d:2.9});
     destinations.push({x:quiet.x-1.6,z:quiet.z+quiet.d/2-2},{x:quiet.x+1.6,z:quiet.z+quiet.d/2-2});
   }
-  return { rooms, hall, lounge, reception, meeting, quiet, floors, obstacles, destinations,
+  const socialSpots = { coffee: [destinations.length+6,destinations.length+7], duck: [destinations.length,destinations.length+1], arcade: [destinations.length+2,destinations.length+3], standup: [destinations.length+4,destinations.length+5] };
+  destinations.push({x:meeting.x+2.5,z:meeting.z+1.8},{x:meeting.x+2.5,z:meeting.z-.2},
+    {x:lounge.x-2.8,z:lounge.z+3.5},{x:lounge.x-1.6,z:lounge.z+4.6},
+    {x:reception.x+2.5,z:reception.z+2.4},{x:reception.x+4.1,z:reception.z+2.4},
+    {x:lounge.x-1.4,z:lounge.z+.4},{x:lounge.x+.5,z:lounge.z+.4});
+  return { rooms, hall, lounge, reception, meeting, quiet, floors, obstacles, destinations, socialSpots,
     bounds: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2, w: maxX - minX, d: maxZ - minZ } };
 }

@@ -7,8 +7,9 @@ export type Theme = 'studio' | 'lab' | 'garden';
 const identifier = z.string().min(1).max(160).regex(/^[a-zA-Z0-9_.:-]+$/).refine(v => !['__proto__', 'constructor', 'prototype'].includes(v));
 export const eventSchema = z.object({
   version: z.literal(1), id: identifier, at: z.number().int().positive(),
-  provider: z.enum(['codex', 'claude']),
-  project: z.object({ id: identifier, name: z.string().min(1).max(60), theme: z.enum(['studio', 'lab', 'garden']).default('studio') }).strict(),
+  provider: z.enum(['codex', 'claude']), instanceId: identifier.optional(),
+  project: z.object({ id: identifier, name: z.string().min(1).max(60), theme: z.enum(['studio', 'lab', 'garden']).default('studio'),
+    identity: z.enum(['repository', 'folder', 'manual']).optional(), vertical: z.string().regex(/^[a-z-]{1,50}$/).optional(), description: z.string().max(180).optional() }).strict(),
   sessionId: identifier, agentId: identifier, parentAgentId: identifier.optional(),
   name: z.string().min(1).max(50), state: z.enum(states),
   activity: z.string().min(1).max(140), task: z.string().max(180).optional(),
@@ -16,10 +17,12 @@ export const eventSchema = z.object({
   phase: z.enum(['start', 'finish', 'state']).default('state'),
 }).strict();
 export type OfficeEvent = z.infer<typeof eventSchema>;
-export type Agent = OfficeEvent & { key: string; joinedAt: number; toolMarks: Record<string, number>; tools: Record<string, { state: AgentState; activity: string; tool: string; at: number }> };
+export type Agent = OfficeEvent & { key: string; joinedAt: number; officeName?: string; visitingOfficeId?: string; toolMarks: Record<string, number>; tools: Record<string, { state: AgentState; activity: string; tool: string; at: number }> };
 export type OfficeState = { agents: Agent[]; events: OfficeEvent[]; seen: string[]; revision: number };
 export const emptyOffice = (): OfficeState => ({ agents: [], events: [], seen: [], revision: 0 });
-export const agentKey = (e: Pick<OfficeEvent, 'provider' | 'sessionId' | 'agentId'>) => `${e.provider}:${e.sessionId}:${e.agentId}`;
+export const agentKey = (e: Pick<OfficeEvent, 'provider' | 'instanceId' | 'sessionId' | 'agentId'>) => `${e.provider}:${e.instanceId ? e.instanceId + ':' : ''}${e.sessionId}:${e.agentId}`;
+export const sameSession = (a: Agent, b: Agent) => a.provider === b.provider && a.instanceId === b.instanceId && a.sessionId === b.sessionId && a.project.id === b.project.id;
+export const agentRole = (agent: Agent, peers: Agent[]) => peers.some(a => sameSession(a, agent) && a.parentAgentId === agent.agentId) ? 'Team lead' : agent.parentAgentId ? 'Subagent' : 'Agent';
 export const stateMeta: Record<AgentState, { label: string; emoji: string; color: string; feeling: string }> = {
   coding: { label: 'Building', emoji: '⌨️', color: '#6b9f85', feeling: 'In the zone' },
   thinking: { label: 'Thinking', emoji: '💭', color: '#9780c3', feeling: 'Connecting the dots' },
@@ -96,7 +99,7 @@ export type Session = { key: string; id: string; provider: Provider; name: strin
 export function sessionsOf(project: Project): Session[] {
   const groups = new Map<string, Agent[]>();
   for (const agent of project.agents) {
-    const key = `${agent.provider}:${agent.sessionId}`;
+    const key = `${agent.provider}:${agent.instanceId ?? ''}:${agent.sessionId}`;
     groups.set(key, [...(groups.get(key) ?? []), agent]);
   }
   return [...groups].map(([key, members]) => {

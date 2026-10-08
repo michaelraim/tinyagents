@@ -8,7 +8,7 @@ The owner-facing checklist is in [launch-guide.md](launch-guide.md). End-user se
 - Website: `https://tinyagents.michael-325.workers.dev`
 - Static assets: Vite's `dist/`, with API requests routed to the Worker first.
 - State: one SQLite Durable Object per office, binding `OFFICES`, class `Office`.
-- Live updates: cookie-authenticated, hibernatable WebSockets.
+- Live updates: separate private and public hibernatable WebSockets. Private streams require a viewer cookie; public streams require owner-enabled sharing.
 - Public registration: `PUBLIC_SIGNUP=true` in `wrangler.jsonc`.
 - No external database, R2 bucket, AI API keys or always-on Node server is required.
 
@@ -39,7 +39,7 @@ A new office returns four values: its ID, ingest key, viewer key and owner/recov
 
 - Ingest key: write normalized activity and probe the connection.
 - Viewer key: read office state.
-- Owner/recovery key: read, replace all keys and delete the office.
+- Owner/recovery key: read, manage sharing, replace all keys and delete the office.
 - The cookie is HttpOnly, SameSite=Strict and Secure on the hosted Worker.
 - Keys never appear in WebSocket query strings.
 - Key replacement invalidates all previous keys, preserves office state and closes old viewer sockets.
@@ -60,16 +60,27 @@ For a temporary signup pause, change `PUBLIC_SIGNUP` to `false`. Without `REGIST
 | POST | /api/events | Ingest bearer key + X-Office-Id |
 | GET | /api/snapshot?office=ID | Viewer cookie |
 | GET | /api/stream?office=ID | Viewer cookie, WebSocket upgrade |
+| GET / POST | /api/share?office=ID | Recovery bearer key |
+| GET | /api/public?office=ID | None; owner must enable sharing |
+| GET | /api/public/stream?office=ID | None; sharing enabled, WebSocket upgrade |
 | POST | /api/keys?office=ID | Recovery bearer key |
 | DELETE | /api/office?office=ID | Recovery bearer key |
 
 Origin checks reject cross-site browser requests. Ingestion uses a strict schema and a 64 KiB request limit. Observers never forward raw prompts, tool arguments or results.
 
+## Public projection and neighborhood
+
+Sharing is opt-in and stored with the office. Public payloads are built from an allowlist in `shared/public-office.ts`; private tasks, tools and history must never pass through. Name/brief disclosure is a separate setting. Socket tags distinguish public/private; broadcasts fail closed for unknown tags. Sharing changes send `sharing_changed`, close public sockets and trigger fresh authorization. The client establishes its heartbeat immediately on open; the local Cloudflare proxy delays close completion for completely silent clients, so explicit invalidation also clears their view.
+
+Friends are browser-local bookmarks, not mutual friend accounts. Up to three published offices can join a personal neighborhood, each capped at 24 characters. Visitors refresh every 12 seconds, and failed/closed links remove their cast. Full office visits stream all retained characters. IDs are namespaced per office before layout, collision and hierarchy calculations. Social gathering only changes the local animation destination of idle/done agents; observed work states and real agent instructions remain untouched. Shared antics are not synchronized between browsers.
+
+Project identities use a locally normalized Git origin fingerprint, falling back to common Git directory or real folder path. Provider and client identity separate simultaneous sessions. Use manual per-folder `projectId` overrides for related repositories. No migration merges previous observer identities; old records remain in bounded state.
+
 ## Limits and monitoring
 
 Signup is limited to 5 requests per minute per connecting IP; recovery/session management is limited to 30. Cloudflare's rate-limit binding is approximate and local to a data center, not a global quota or full bot defense. Shared networks may temporarily share a limit. The app does not store IPs in office records.
 
-Each office accepts up to 600 ingestion batches per minute and 10 viewer sockets. Each batch has at most 20 events. State retains 160 agents, 80 activity entries and 1,024 deduplication IDs.
+Each office accepts up to 600 ingestion batches per minute and 10 private viewer sockets plus 20 public visitor sockets. Each batch has at most 20 events. State retains 160 agents, 80 activity entries and 1,024 deduplication IDs.
 
 Local observers hold up to 256 events, discard events older than seven days and retry on future hooks. The optional `watch` command retries every five seconds. It is not installed as an OS service.
 
@@ -83,7 +94,7 @@ npm run verify
 npm audit
 ```
 
-Verification builds plugin downloads and the frontend, checks TypeScript, runs tests, performs a Worker dry run, then starts an isolated local Worker and tests signup, real observer processes, private office isolation, hierarchy, WebSockets, queue retry, recovery, rotation and deletion.
+Verification builds plugin downloads and the frontend, checks TypeScript, runs tests, performs a Worker dry run, then starts an isolated local Worker and tests signup, real observer processes, private office isolation, hierarchy, WebSockets, queue retry, recovery, rotation, public sharing/projection/revocation and deletion.
 
 ```sh
 npm run dev

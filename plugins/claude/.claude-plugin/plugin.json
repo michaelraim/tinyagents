@@ -1,6 +1,6 @@
 {
   "name": "sidequest-office",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A living office for your coding agents. Metadata-only activity observer.",
   "author": {
     "name": "Michael Raim"
