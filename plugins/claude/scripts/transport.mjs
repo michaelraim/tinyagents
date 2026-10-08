@@ -33,7 +33,7 @@ export async function probe(config) {
     method: 'POST', headers: { Authorization: `Bearer ${config.ingestKey}`, 'X-Office-Id': config.officeId },
     redirect: 'error', signal: AbortSignal.timeout(6000),
   });
-  if (!response.ok) throw new Error(`Connection check failed (HTTP ${response.status}). Check the deployment, office ID and ingest key.`);
+  if (!response.ok) { const error = new Error(`Connection check failed (HTTP ${response.status}). Check the deployment, office ID and ingest key.`); error.status = response.status; throw error; }
   return response.json();
 }
 export async function flush(config, timeout = 1400) {

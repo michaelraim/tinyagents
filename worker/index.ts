@@ -5,6 +5,7 @@ import { shareSchema, privateSharing, publicOffice, type ShareSettings } from '.
 import { clockSettingsSchema, timeZoneSchema } from '../shared/clock';
 import { createAuth, providers, type AuthEnv } from './auth';
 import { accountHeader, sessionHeader, accountRoute, ownedOffice, newOfficeSecrets } from './accounts';
+import { pairingRoute, pairingCodePattern } from './pairing';
 interface Env extends AuthEnv { OFFICES: DurableObjectNamespace<Office>; ASSETS: Fetcher; REGISTRATION_KEY?: string; PUBLIC_SIGNUP?: string; BUILD_SHA?: string; SIGNUP_LIMITER: RateLimit; AUTH_LIMITER: RateLimit }
 type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings; connections?: { id: string; name: string; hash: string; createdAt: number }[] };
 const json = (data: unknown, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -51,7 +52,8 @@ export default {
           if (body.provider !== 'github' && body.provider !== 'gitlab') return json({ error: 'Choose GitHub or GitLab.' }, 400);
           if (!enabled[body.provider as 'github' | 'gitlab']) return json({ error: 'This sign-in provider is being set up. Please try again soon.' }, 503);
           // Provider permissions are fixed here, never expanded by client input.
-          request = new Request(request, { body: JSON.stringify({ provider: body.provider, callbackURL: '/office?welcome=1', errorCallbackURL: '/office?auth_error=1' }) });
+          const returnTo = route === 'sign-in/social' && pairingCodePattern.test(String(body.pairingCode)) ? `/connect?code=${body.pairingCode}` : null;
+          request = new Request(request, { body: JSON.stringify({ provider: body.provider, callbackURL: returnTo ?? '/office?welcome=1', errorCallbackURL: returnTo ? `${returnTo}&auth_error=1` : '/office?auth_error=1' }) });
         }
         if (route !== 'get-session' && !(await env.AUTH_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Too many attempts. Try again in a minute.' }, 429);
         if (route === 'sign-out') {
@@ -69,6 +71,16 @@ export default {
           return new Response(response.body, { status: response.status, headers });
         }
         return response;
+      }
+      if (url.pathname === '/api/pairing' || url.pathname.startsWith('/api/pairing/')) {
+        if (!auth || !socialLogin) return json({ error: 'Sign-in is being set up. Please try again soon.' }, 503);
+        const browser = ['/api/pairing', '/api/pairing/approve'].includes(url.pathname);
+        const limiter = url.pathname === '/api/pairing/start' ? env.SIGNUP_LIMITER : env.AUTH_LIMITER;
+        // Polling is keyed by the unguessable device secret, so a shared NAT does
+        // not lock out several developers connecting at the same time.
+        const key = ['/api/pairing/poll', '/api/pairing/finish'].includes(url.pathname) && request.method === 'POST' ? await digest(await request.clone().text()) : request.headers.get('CF-Connecting-IP') || 'local';
+        if (!(await limiter.limit({ key: 'pair:' + key })).success) return json({ error: 'Please try again in a minute.' }, 429);
+        return await pairingRoute(request, env, browser ? await auth.api.getSession({ headers: request.headers }) : null);
       }
       if (url.pathname === '/api/account' || url.pathname === '/api/account/office') {
         if (request.method !== 'GET' && !(await env.AUTH_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Please try again in a minute.' }, 429);
@@ -140,6 +152,16 @@ export class Office extends DurableObject<Env> {
     if (!this.record) { const [ingest, viewer, owner] = await newOfficeSecrets(); if (!this.record) await this.initialize(ingest, viewer, owner, timeZone); }
   }
   async proveOwner(key: string) { return !this.limited('logins', 30) && !!this.record && await matches(key, this.record.ownerHash ?? ''); }
+  async installConnection(id: string, name: string, hash: string) {
+    if (!this.record) return false;
+    const current = this.record.connections ?? [];
+    if (current.some(c => c.id === id)) return true;
+    if (current.length >= 20) return false;
+    this.record.connections = [...current, { id, name, hash, createdAt: Date.now() }];
+    await this.ctx.storage.put('state', this.record);
+    return true;
+  }
+  async hasConnection(id: string) { return !!this.record?.connections?.some(c => c.id === id); }
   async closeSession(id: string) { for (const ws of this.ctx.getWebSockets('session:' + id)) { ws.send(JSON.stringify({ type: 'session_ended' })); ws.close(1000, 'Signed out'); } }
   async deleteOwnedOffice() {
     await this.ctx.storage.deleteAll(); this.record = undefined;

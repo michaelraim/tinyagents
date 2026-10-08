@@ -1,5 +1,5 @@
 {
-  "description": "tinyAGENTS activity observer. Sends allowlisted metadata only; never changes agent decisions.",
+  "description": "tinyAGENTS activity observer. Opens browser setup on first use; sends allowlisted metadata after connection. Never changes agent decisions.",
   "hooks": {
     "SessionStart": [
       {

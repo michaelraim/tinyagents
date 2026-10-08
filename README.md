@@ -6,7 +6,7 @@ A public beta of a living Three.js coworking office for Codex and Claude Code. A
 
 **[Homepage](https://tinyagents.michael-325.workers.dev)** · **[Open your office](https://tinyagents.michael-325.workers.dev/office)** · **[Connect your agents](https://tinyagents.michael-325.workers.dev/setup.html)** · **[Owner checklist](docs/launch-guide.md)**
 
-Users sign in with GitHub or GitLab; their office activity is private. The operator first completes the [OAuth setup](docs/sso-setup.md). Cloudflare Workers serves the website and SQLite Durable Objects store office state. Every push to main deploys automatically after Windows and Linux checks pass.
+Users sign in with GitHub or GitLab; their office activity is private. Install a plugin, approve your computer in the browser, and start coding. GitHub/GitLab sign-in is configured on the live site; self-hosters follow [OAuth setup](docs/sso-setup.md). Cloudflare Workers serves the website and SQLite Durable Objects store office state. Every push to main deploys automatically after Windows and Linux checks pass.
 
 ## Run it
 
@@ -38,6 +38,7 @@ Choose **Connect agents → Create my office**. Save the connection file and vie
 - Provider-aware project/session/subagent hierarchy with aggregated work, attention, idle, completion and stale-signal states. Attention counts remain visible alongside concurrently running work.
 - Poke, snack, and cheer reactions. These are visual interactions and do not send prompts or influence the real agent.
 - Local hook normalization, bounded disk outbox, automatic next-hook retries, manual flush/optional retry watcher, authenticated pairing diagnostics, WebSocket snapshots, and persistence.
+- Automatic first-use browser connection, account-based office creation, shared Codex/Claude configuration, a bundled setup skill, expiring device requests, and independently revocable computer connections.
 - Generated Codex and Claude plugin folders and zip downloads, using a shared dependency-free Node observer.
 - GitHub/GitLab social login via Better Auth and Cloudflare D1, cross-device office ownership, explicit linking of both providers, per-computer connection keys, sign-out and account deletion. Existing offices can be attached with their original owner key.
 - A Cloudflare Worker with one SQLite-backed Durable Object per office, hibernatable WebSockets, stored state, rate limits, legacy key compatibility and office deletion.
@@ -84,7 +85,7 @@ Then open its printed URL. This runs the same Durable Object implementation as d
 
 ## Plugin configuration
 
-Both plugins read `~/.sidequest/config.json`, or the file named by `SIDEQUEST_CONFIG`. A downloaded connection file supplies endpoint, office ID, and ingest key. Per-project overrides allow explicit project grouping and atmosphere:
+Both plugins read `~/.sidequest/config.json`, or the file named by `SIDEQUEST_CONFIG`. The plugin opens a browser sign-in and saves endpoint, office ID and ingest key automatically after approval. Both harnesses share it. Ask the installed agent to “connect tinyAGENTS” to retry. Manual JSON import remains an advanced fallback. Per-project overrides allow explicit project grouping and atmosphere:
 
 ```json
 {

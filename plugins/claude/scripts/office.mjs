@@ -1,4 +1,5 @@
 import { readConfig, probe, queuedFiles, flush } from './transport.mjs';
+import { connect } from './pairing.mjs';
 const command = process.argv[2] || 'doctor';
 async function drain(config) {
   let delivered = 0;
@@ -11,7 +12,8 @@ async function drain(config) {
   return delivered;
 }
 try {
-  if (!['doctor', 'flush', 'watch'].includes(command)) throw new Error('Usage: node scripts/office.mjs doctor|flush|watch');
+  if (command === 'connect') { console.log(await connect()); process.exit(0); }
+  if (!['doctor', 'flush', 'watch'].includes(command)) throw new Error('Usage: node scripts/office.mjs connect|doctor|flush|watch');
   const config = await readConfig();
   if (command === 'doctor') {
     const result = await probe(config);

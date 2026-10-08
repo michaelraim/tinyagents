@@ -41,6 +41,16 @@ The unique `office_owner` mapping binds one account to one office. First-time cr
 
 Each account can issue up to 20 computer connections. Only their hashes are stored. Removing one leaves others active. Legacy keys remain valid after import; replacing all keys invalidates every connection. Social sessions expire after 30 days, with no cookie cache. Logout closes that session’s office streams and clears legacy cookies. Stream updates and pings recheck session expiry/revocation in D1. Account deletion removes the office, user, linked accounts, sessions and ownership mapping. Cloudflare backup retention still applies.
 
+## Browser connection (plugin 0.6+)
+
+First trusted SessionStart/UserPromptSubmit with no saved configuration launches a detached Node helper. It requests `/api/pairing/start` with a computer label, provider and IANA zone, opens `/connect?code=…`, and polls every five seconds for up to 15 minutes. Hook processes return immediately. Both plugins coordinate through one local launch lock and share the saved configuration. An existing valid configuration skips setup. An explicit `connect` checks its credentials; a revoked/deleted connection is backed up before a new browser handoff. Automatic attempts have a one-day cooldown after failure or dismissal; explicit setup can retry immediately.
+
+Migration `0003_device_pairing.sql` stores an expiring request, SHA-256 digest of a 256-bit device secret, public confirmation code, label, provider, zone and approval state. Start requests use the signup limiter; browser approval uses the auth limiter, a logged-in account and a same-origin request. The account claim is atomic. Approval creates the office if needed and installs one idempotent connection. Polling needs the separate device secret; the public browser code never retrieves credentials. Delivery can retry within the expiry window. A domain-separated HMAC derives the temporary delivery key from the login signing secret and device digest; the Durable Object retains only its hash. Rotation of the login signing secret can interrupt an in-progress pairing but does not revoke previously saved connections.
+
+The helper validates the endpoint, probes the credential, and atomically links a complete private file into place without replacing a concurrent connection. It acknowledges completion only after saving. The page waits for that acknowledgement before showing success. Expired requests are deleted on the next start request; account deletion cascades its approved requests. Polling cannot restore deleted offices or revoked keys. Hook input from before connection is not buffered or uploaded.
+
+The setup skill provides a retry link for headless clients. `TINYAGENTS_URL` selects a self-hosted HTTPS origin (loopback HTTP is allowed for development); `TINYAGENTS_NO_BROWSER=1` suppresses the browser for tests/headless use. Manual JSON import stays available as a fallback. The official Codex directory currently excludes lifecycle-hook plugins, so distribution remains the repository marketplace. Hook review/trust remains in the host app.
+
 ## Legacy registration and authentication
 
 A new office returns four values: its ID, ingest key, viewer key and owner/recovery key. Only key hashes are persisted server-side.

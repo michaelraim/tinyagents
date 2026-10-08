@@ -4,12 +4,18 @@ import { digest, officeIdPattern, token } from '../shared/security';
 import { timeZoneSchema } from '../shared/clock';
 
 export type Session = NonNullable<Awaited<ReturnType<ReturnType<typeof createAuth>['api']['getSession']>>>;
-type AccountEnv = AuthEnv & { OFFICES: DurableObjectNamespace<Office> };
+export type AccountEnv = AuthEnv & { OFFICES: DurableObjectNamespace<Office> };
 export const accountHeader = 'X-Tinyagents-Account';
 export const sessionHeader = 'X-Tinyagents-Session';
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 export async function ownedOffice(env: AuthEnv, userId: string) {
   return (await env.AUTH_DB.prepare('SELECT officeId FROM office_owner WHERE userId = ?').bind(userId).first<{officeId: string}>())?.officeId ?? null;
+}
+export async function ensureOwnedOffice(env: AccountEnv, userId: string, timeZone: string) {
+  await env.AUTH_DB.prepare('INSERT OR IGNORE INTO office_owner (userId, officeId, createdAt) VALUES (?, ?, ?)').bind(userId, crypto.randomUUID(), Date.now()).run();
+  const id = (await ownedOffice(env, userId))!;
+  await env.OFFICES.get(env.OFFICES.idFromName(id)).ensureAccountOffice(timeZone);
+  return id;
 }
 export async function accountRoute(request: Request, env: AccountEnv, session: Session | null): Promise<Response> {
   const url = new URL(request.url);
@@ -35,9 +41,7 @@ export async function accountRoute(request: Request, env: AccountEnv, session: S
     if (!zone.success) return json({ error: 'Choose a valid time zone.' }, 400);
     // Reserve the ID first. Concurrent tabs converge on the same record, and
     // retrying after a failed initialization is safe.
-    await env.AUTH_DB.prepare('INSERT OR IGNORE INTO office_owner (userId, officeId, createdAt) VALUES (?, ?, ?)').bind(session.user.id, crypto.randomUUID(), Date.now()).run();
-    const id = (await ownedOffice(env, session.user.id))!;
-    await env.OFFICES.get(env.OFFICES.idFromName(id)).ensureAccountOffice(zone.data);
+    const id = await ensureOwnedOffice(env, session.user.id, zone.data);
     return json({ officeId: id });
   }
   if (request.method === 'DELETE' && url.pathname === '/api/account') {

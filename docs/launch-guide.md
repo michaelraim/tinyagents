@@ -4,13 +4,17 @@ Homepage: **https://tinyagents.michael-325.workers.dev**
 
 Your workspace: **https://tinyagents.michael-325.workers.dev/office** · Demo: **https://tinyagents.michael-325.workers.dev/demo**
 
-GitHub and GitLab sign-in are implemented. To activate them for everyone, complete the [OAuth setup steps](sso-setup.md): create the two apps and add their four values to Cloudflare. The database and login signing secret are already configured. Google is not used. Offices stay private until their owners open visitor links.
+GitHub and GitLab sign-in are configured on the live site. The new plugin connects through your browser. No connection-file download or import command is required.
 
-## First: activate sign-in
+## The new user experience
 
-1. Follow [these exact GitHub and GitLab setup steps](sso-setup.md).
-2. Sign in and choose **I already have an office**. Select `%USERPROFILE%\.sidequest\recovery.json` once to attach your existing office. Do not create another office if you want to keep this one.
-3. Future sign-ins need only your GitHub or GitLab account. Link the other provider under **Sign-in & account** to use either.
+1. Install the Codex or Claude Code plugin using the [short setup guide](https://tinyagents.michael-325.workers.dev/setup.html).
+2. Restart the coding app, enable/trust its hooks, and start a session. The plugin opens the browser.
+3. Sign in if needed and click **Connect this computer**. Your office is created automatically. Start coding.
+
+Install both plugins to use both clients. They share the connection automatically on the same OS account. On another computer, sign into the same account during its browser connection. If the browser does not open, ask the agent **“connect tinyAGENTS”**.
+
+Your existing computer connection is preserved. For an older office that has not been linked to social login, use **I already have an office** and its original owner recovery file once. New offices never need a recovery file.
 
 ## You do not need to set up hosting
 
@@ -37,21 +41,15 @@ The pairing file is `%USERPROFILE%\.sidequest\config.json`. Both clients use it.
 
 The observer packages were tested against the live server. Your first real task after restarting is still needed to confirm that each client is actually running its hooks. This existing chat does not gain new hooks halfway through a session.
 
-## For everyone else, or another computer
+## Requirements and limits
 
-1. Open the website and click **Get your office**.
-2. Sign in with GitHub or GitLab, create your office, and download a connection file.
-3. Follow the [short connection guide](https://tinyagents.michael-325.workers.dev/setup.html). It has copyable commands for Windows, macOS, Linux, Codex and Claude Code.
+Node.js 22.18+ must be available where the coding app runs. WSL, containers, SSH and other computers connect separately, using the same account. This supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot execute these local hooks. The coding app's hook trust review is still required.
 
-To use your existing office on another computer, copy your private connection file there and pair that computer using the same guide. Sign into the website with the same provider account.
-
-You need Node.js 22.18 or newer on the computer where the agents run. If an agent runs inside WSL or on another computer, pair it there too. This version supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot run the local observer.
-
-You do not need to give the website an OpenAI or Anthropic API key.
+No model API key, repository clone, npm install or local web server is needed to use the plugin. Existing installations need an update to **0.6.0** for browser setup; the guide has the update commands.
 
 ## Your clock and the growing floor plan
 
-New offices save the time zone of the browser that creates them. Older offices pick up the first connected observer's time zone, unless the owner has already set one. Visitors see the owner's local time. A second harness cannot move an established office clock.
+New offices save the time zone of the computer connected by the plugin (or the browser when created on the website). Older offices pick up the first connected observer's time zone, unless the owner has already set one. Visitors see the owner's local time. A second harness cannot move an established office clock.
 
 To change it: **Office settings → Office clock → Use my current time zone → Save office clock** (legacy offices still ask for the owner file until attached to an account). You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. The clock button cycles through night/day previews and back to the local clock.
 
@@ -65,7 +63,7 @@ Small 3D bubbles anchored above each character show its observed state and a pla
 
 The updated observers report subagent assignments and returns. Recognized direct-message tools can also report a hashed recipient ID. When both characters can be identified, they acknowledge each other at their desks or gather if both are between tasks. Unknown recipients and unsupported hook paths produce no invented conversation. Raw message text is never uploaded. These handoff scenes use the private activity stream; public visitors do not receive that history.
 
-Coffee chats, hallway hellos, rubber-duck clubs and arcade rivalries also happen between resting characters. These are clearly labeled break scenes. They never cause real agents to send messages. Restart the clients after updating to observer **0.5.1** to get the new metadata.
+Coffee chats, hallway hellos, rubber-duck clubs and arcade rivalries also happen between resting characters. These are clearly labeled break scenes. They never cause real agents to send messages. Restart the clients after updating to observer **0.6.0** to get the new metadata.
 
 ## Share your office and visit friends
 
@@ -89,7 +87,7 @@ Characters wear their room number and color. **⌘** means Codex; **✳** means 
 
 ## Codex and Claude in the same office
 
-Both plugins already use the same connection file on this computer. You only need one office. On another computer or inside WSL, pair with that same file.
+Both plugins already use the same connection file on this computer. You only need one office. On another computer or inside WSL, connect through the browser using the same account.
 
 The observer groups a project by its Git repository, not its display name. Codex and Claude working in the same repository share the project and keep separate sessions. Subfolders, worktrees and clones with the same Git origin also group together. Different repositories with the same name stay separate. A folder without Git is identified by its real path.
 
@@ -113,9 +111,9 @@ Cloudflare's [deployment token instructions](https://developers.cloudflare.com/w
 ## Everyday use
 
 - **Open your office elsewhere:** sign in with the same GitHub or GitLab account.
-- **Lost or exposed connection key:** My account & agents → Connected computers → Remove the affected connection. Download a new connection file and pair that computer again. For old pre-SSO keys, use the legacy Manage screen to replace all keys.
+- **Lost or exposed connection key:** My account & agents → Connected computers → Remove the affected connection. Ask the coding agent to reconnect tinyAGENTS on that computer. For old pre-SSO keys, use the legacy Manage screen to replace all keys.
 - **Delete your account and office:** My account & agents → Sign-in & account → Delete my account and office.
-- **No agents appear:** run `node bridge/office.mjs doctor` from your checkout. Then check hook trust and start a new task.
+- **No agents appear:** ask the coding agent to diagnose the tinyAGENTS connection. Check hook trust and start a new task.
 - **Updates stopped after a network problem:** run `node bridge/office.mjs flush`.
 
 Your GitHub or GitLab account is your way back in. Keep its own account recovery options current. Existing viewer keys only grant viewing; they cannot claim an office. Old owner recovery keys remain valid, so keep those files private.

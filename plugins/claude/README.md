@@ -1,53 +1,43 @@
 # tinyAGENTS for Claude Code
 
-Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
+Install the plugin, approve your computer in the browser, and start coding.
+Requires Node.js 22.18+ on the coding client's PATH.
 
-1. Open https://tinyagents.michael-325.workers.dev, choose Get your office, and create your office. No invite needed.
-2. Download the connection file and save the recovery file privately. The recovery key lets you replace keys and delete the office.
-3. From this extracted plugin directory, pair your machine:
-
-```sh
-node scripts/setup.mjs /absolute/path/to/tinyagents.config.json
-node scripts/office.mjs doctor
-```
-
-Both clients share ~/.sidequest/config.json. SIDEQUEST_CONFIG overrides its location; SIDEQUEST_HOME overrides the state directory. Pair separately inside WSL or on a remote machine.
-
-## Persistent installation
-
-Run:
+## Install
 
 ```sh
 claude plugin marketplace add michaelraim/tinyagents
 claude plugin install sidequest-office@tinyagents --scope user
 ```
 
-Restart Claude Code and inspect /hooks. To try this downloaded folder without a persistent install: claude --plugin-dir /absolute/path/to/this/folder.
+Restart Claude Code and enable the plugin's hooks. Start a new session.
 
-The repository is public. For a local checkout, replace michaelraim/tinyagents with the absolute path to the repository (not to this plugin folder). Start a new session or submit a request; earlier sessions are not automatically discovered.
+The plugin opens tinyAGENTS in your browser. Sign in with GitHub or GitLab if needed, check the computer name, and click **Connect this computer**. Your office is created automatically if you don't have one. The page confirms when the connection is saved. Start a task to bring your crew in.
 
-## Diagnostics and retry
+No connection download, repository clone, npm install, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection.
+
+Install both plugins if you use both clients. They share one office automatically in the same OS account. An already connected computer stays connected; no browser opens again. Connect separately inside WSL, containers, SSH or on another machine, using the same GitHub/GitLab account. Node must be installed in that environment. On headless machines, use the link returned by the setup skill.
+
+This public beta uses a GitHub plugin marketplace. It is not listed in the clients' official directories. Locally running Codex/Claude sessions are supported; cloud-orchestrated Codex sessions cannot execute these local hooks. Hook trust stays under your coding client's control.
+
+## Diagnostics
+
+From this plugin folder:
 
 ```sh
+node scripts/office.mjs connect
 node scripts/office.mjs doctor
 node scripts/office.mjs flush
-node scripts/office.mjs watch
 ```
 
-Doctor checks authentication without creating a simulated agent. Flush retries pending events. Watch retries every five seconds while its terminal stays open. Hooks also retry, and never alter the real agent's decisions.
-
-Up to 256 events are kept for seven days. A timeout leaves them queued. Stop watch with Ctrl+C. Network issues never block your coding client intentionally; a host may run SessionEnd synchronously for up to three seconds. Silence becomes an unconfirmed/away state, not invented work.
+Connect opens or resumes the browser handoff. Doctor checks credentials. Flush retries queued activity. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
 
 ## Privacy and configuration
 
-Only provider, hashed project/client/session/agent IDs, display name, generic activity, allowlisted tool name, parent link, optional room metadata, IANA time zone, hashed targets for recognized handoffs/messages and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
+Only allowlisted activity metadata is uploaded after you approve the computer: provider, hashed project/session/agent identities, display names, generic activity, tool name, parent links, room metadata, local time zone and timestamps. Prompts, source, raw paths, remote URLs, commands, transcripts and tool output remain local. During connection, the website receives your computer name, client and time zone.
 
-Projects are identified by a locally hashed, normalized Git origin. SSH/HTTPS clones, subfolders and worktrees of the same remote share a project. Without a remote, the Git common directory is used; non-Git folders use their real path. Raw paths, remote URLs and remote credentials are never uploaded. Codex and Claude keep separate sessions and people inside that project.
+Both clients read ~/.sidequest/config.json. SIDEQUEST_CONFIG overrides the file; SIDEQUEST_HOME overrides the state directory. Keep these files private. Projects use a locally hashed Git origin: clones, subfolders and worktrees of the same remote share a room. Without a remote, identity uses the Git common directory or real folder path. Each harness keeps its own sessions and people.
 
-Optional config: projectId (manual grouping override), projectName (display alias), vertical, projectDescription, theme (studio/lab/garden), taskLabel, instanceId (distinct client override), and projects (map of forward-slash folder paths to overrides, including subfolders). Names and labels are shared privately with your office; do not include secrets. Use the same projectId override when related folders have different remotes. On another machine, pair with the same office connection file.
+Optional config fields: projectId, projectName, vertical, projectDescription, theme, taskLabel, instanceId, and a projects map of forward-slash folder paths to those overrides. For a self-hosted office, set TINYAGENTS_URL to its HTTPS origin before connecting. Advanced JSON import remains available with scripts/setup.mjs.
 
-Public visits are optional. Friends > Share my office on the website requires your recovery key. Public views omit task labels and tool details. Project names and briefs require a separate opt-in. Never share a connection or recovery file as a visitor link.
-
-Simple setup guide: https://tinyagents.michael-325.workers.dev/setup.html
-
-Disable/uninstall the plugin to stop new reports; stop watch too. Use Connect agents > Manage on the website to replace keys or delete the office. Keep connection and recovery files private. This is a public beta distributed through a GitHub marketplace, not a listing in the clients' official directories.
+Manage connections under **My account & agents → Connected computers**. Remove a computer to revoke it. Disable/uninstall the plugin to stop new reports. Public visitor links are optional and never contain connection keys. Full guide: https://tinyagents.michael-325.workers.dev/setup.html

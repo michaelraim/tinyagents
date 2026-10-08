@@ -9,11 +9,12 @@ describe('installable observers', () => {
   it('ships complete, synchronized packages and resolvable marketplace entries', async () => {
     for (const provider of ['codex', 'claude']) {
       const archive = unzipSync(await readFile(`public/plugins/${provider}.zip`));
-      for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs']) {
+      for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs', 'pairing.mjs']) {
         const source = await readFile(`bridge/${file}`, 'utf8');
         expect(await readFile(`plugins/${provider}/scripts/${file}`, 'utf8')).toBe(source);
         expect(new TextDecoder().decode(archive[`scripts/${file}`])).toBe(source);
       }
+      expect(new TextDecoder().decode(archive['skills/connect-tinyagents/SKILL.md'])).toBe(await readFile('bridge/connect-skill.md', 'utf8'));
     }
     const codex = JSON.parse(await readFile('.agents/plugins/marketplace.json', 'utf8'));
     const claude = JSON.parse(await readFile('.claude-plugin/marketplace.json', 'utf8'));

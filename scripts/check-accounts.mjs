@@ -28,27 +28,51 @@ async function call(path, { method = 'GET', cookie = '', body, headers = {}, sta
   assert.equal(response.status, status, `${method} ${path.split('?')[0]}`);
   return response;
 }
-async function login(provider = 'github', cookie = '', link = false) {
-  const started = await call('/api/auth/' + (link ? 'link-social' : 'sign-in/social'), { method: 'POST', cookie, body: { provider, scopes: ['repo'], callbackURL: 'https://attacker.example/' } });
+async function login(provider = 'github', cookie = '', link = false, pairingCode) {
+  const started = await call('/api/auth/' + (link ? 'link-social' : 'sign-in/social'), { method: 'POST', cookie, body: { provider, scopes: ['repo'], callbackURL: 'https://attacker.example/', pairingCode } });
   const url = new URL((await started.json()).url);
   assert.equal(url.searchParams.get('redirect_uri'), base + '/api/auth/callback/' + provider);
   assert.ok(!url.searchParams.get('scope').includes('repo'));
   const callback = await call(`/api/auth/callback/${provider}?code=fixture&state=${url.searchParams.get('state')}`, { cookie: cookies(started) + '; ' + cookie, status: 302 });
-  assert.equal(callback.headers.get('location'), '/office?welcome=1');
+  assert.equal(callback.headers.get('location'), pairingCode ? '/connect?code=' + pairingCode : '/office?welcome=1');
   return link ? cookie : cookies(callback);
 }
 try {
   const db = await mf.getD1Database('AUTH_DB');
-  for (const file of ['migrations/0001_auth.sql', 'migrations/0002_office_owners.sql']) {
+  for (const file of ['migrations/0001_auth.sql', 'migrations/0002_office_owners.sql', 'migrations/0003_device_pairing.sql']) {
     for (const sql of (await readFile(file, 'utf8')).replace(/--[^\n]*/g, '').split(';').filter(s => s.trim())) await db.prepare(sql).run();
   }
   await call('/api/auth/sign-in/social', { method: 'POST', body: { provider: 'google' }, status: 400 });
   await call('/api/auth/sign-in/social', { method: 'POST', body: { provider: 'github' }, headers: { Origin: 'https://attacker.example' }, status: 403 });
   await call('/api/account/office', { method: 'POST', body: { timeZone: 'UTC' }, status: 401 });
   await call('/api/offices', { method: 'POST', body: {}, status: 403 });
-  const owner = await login();
+  const device = await (await call('/api/pairing/start', { method: 'POST', body: { name: 'Test desktop', provider: 'codex', timeZone: 'Asia/Jerusalem' }, status: 201 })).json();
+  assert.equal(device.verificationUrl, base + '/connect?code=' + device.code);
+  assert.equal((await (await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: device.deviceSecret } })).json()).status, 'pending');
+  await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: 'a'.repeat(64) }, status: 410 });
+  await call('/api/pairing/approve', { method: 'POST', body: { code: device.code }, status: 401 });
+  const owner = await login('github', '', false, device.code);
+  await call('/api/pairing/approve', { method: 'POST', cookie: owner, body: { code: device.code }, headers: { Origin: '' }, status: 403 });
+  await Promise.all([1, 2].map(() => call('/api/pairing/approve', { method: 'POST', cookie: owner, body: { code: device.code } })));
+  const deviceResult = await (await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: device.deviceSecret } })).json();
+  assert.equal(deviceResult.status, 'approved');
+  const deviceConfig = deviceResult.config;
+  assert.equal((await (await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: device.deviceSecret } })).json()).config.ingestKey, deviceConfig.ingestKey, 'poll retries deliver the same credential');
+  await call(`/api/connection?office=${deviceConfig.officeId}`, { method: 'POST', headers: { Authorization: 'Bearer ' + deviceConfig.ingestKey } });
+  const deviceView = await (await call('/api/pairing?code=' + device.code, { cookie: owner })).json();
+  assert.equal(deviceView.status, 'approved'); assert.equal(deviceView.deviceSecret, undefined); assert.equal(deviceView.config, undefined);
+  await call('/api/pairing/finish', { method: 'POST', body: { deviceSecret: device.deviceSecret } });
+  assert.equal((await (await call('/api/pairing?code=' + device.code, { cookie: owner })).json()).status, 'connected');
   const creates = await Promise.all([1, 2].map(() => call('/api/account/office', { method: 'POST', cookie: owner, body: { timeZone: 'Asia/Jerusalem' } }).then(r => r.json())));
   const id = creates[0].officeId; assert.equal(creates[1].officeId, id);
+  assert.equal(id, deviceConfig.officeId, 'device approval creates the office automatically');
+  const deviceConnections = await (await call(`/api/connections?office=${id}`, { cookie: owner })).json();
+  assert.equal(deviceConnections.length, 1, 'simultaneous approvals issue only one connection');
+  await call(`/api/connections?office=${id}&id=${deviceConnections[0].id}`, { method: 'DELETE', cookie: owner });
+  await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: device.deviceSecret }, status: 410 });
+  await call('/api/pairing/approve', { method: 'POST', cookie: owner, body: { code: device.code } });
+  await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: device.deviceSecret }, status: 410 });
+  assert.equal((await (await call(`/api/connections?office=${id}`, { cookie: owner })).json()).length, 0, 'approval replay never restores a revoked key');
   assert.equal((await (await call('/api/account', { cookie: owner })).json()).officeId, id);
   const secondBrowser = await login();
   assert.equal((await (await call('/api/account', { cookie: secondBrowser })).json()).officeId, id);
@@ -71,6 +95,11 @@ try {
   assert.equal((await (await call('/api/account', { cookie: linkedCookie })).json()).officeId, id);
   identity = 202; email = 'other@example.com';
   const other = await login('gitlab');
+  await call('/api/pairing/approve', { method: 'POST', cookie: other, body: { code: device.code }, status: 409 });
+  await call('/api/pairing?code=' + device.code, { cookie: other, status: 409 });
+  await db.prepare('UPDATE device_pairing SET expiresAt = 0 WHERE code = ?').bind(device.code).run();
+  await call('/api/pairing/approve', { method: 'POST', cookie: owner, body: { code: device.code }, status: 410 });
+  await call('/api/pairing/poll', { method: 'POST', body: { deviceSecret: device.deviceSecret }, status: 410 });
   await call(`/api/snapshot?office=${id}`, { cookie: other, status: 403 });
   await call(`/api/clock?office=${id}`, { method: 'POST', cookie: other, body: { timeZone: 'UTC' }, status: 403 });
   await call(`/api/connections?office=${id}`, { method: 'POST', cookie: other, body: { name: 'Attacker' }, status: 403 });
@@ -95,5 +124,5 @@ try {
   assert.equal((await (await call('/api/account', { cookie: secondBrowser })).json()).user, null);
   await call(`/api/connection?office=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + keys.ingestKey }, status: 404 });
   assert.equal((await db.prepare('SELECT count(*) AS n FROM office_owner').first()).n, 0);
-  console.log('Account acceptance passed: both OAuth flows, account linking, stable office identity, ownership isolation, connection revocation, legacy claim, WebSocket logout and deletion.');
+  console.log('Account acceptance passed: browser device pairing, OAuth return, automatic office creation, concurrent approval, expiry, secret separation, revoked-key replay, both OAuth flows, account linking, ownership isolation, legacy claim, WebSocket logout and deletion.');
 } finally { await mf.dispose(); }
