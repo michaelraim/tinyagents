@@ -25,7 +25,11 @@ try {
   if (!ready) throw new Error('Local Worker did not start. ' + log);
   const smoke = spawn(process.execPath, ['scripts/smoke-worker.mjs'], { stdio: 'inherit', windowsHide: true, env: { ...process.env, TEST_WORKER_URL: url, TEST_WORKER_INVITE: 'local-test-invite', TEST_RATE_LIMIT: 'true' } });
   const [code] = await once(smoke, 'exit');
-  if (code !== 0) throw new Error('Cloudflare acceptance failed. Worker output:\n' + log);
+  if (code !== 0) {
+    // Let Wrangler's buffered diagnostics reach the parent before stopping it.
+    await new Promise(resolve => setTimeout(resolve, 500));
+    throw new Error('Cloudflare acceptance failed. Worker output:\n' + log);
+  }
 } finally {
   if (worker.exitCode === null) {
     const closed = once(worker, 'exit');

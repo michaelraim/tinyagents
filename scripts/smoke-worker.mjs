@@ -8,7 +8,11 @@ import { normalizeHook } from '../bridge/normalize.mjs';
 
 const base = process.env.TEST_WORKER_URL || 'http://127.0.0.1:8788';
 const invite = process.env.TEST_WORKER_INVITE || 'local-test-invite';
-const request = (route, options = {}) => fetch(base + route, { ...options, signal: AbortSignal.timeout(10000) });
+const request = async (route, options = {}) => {
+  const response = await fetch(base + route, { ...options, signal: AbortSignal.timeout(10000) });
+  if (response.status >= 500) console.error('[DEBUG-response]', route.split('?')[0], (await response.clone().text()).replace(/[a-f0-9]{64}/g, '[redacted]').slice(0, 6000));
+  return response;
+};
 const post = (route, body, headers = {}) => request(route, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 await mkdir('.local', { recursive: true });
 const directory = await mkdtemp(resolve('.local/cloud-observer-'));
