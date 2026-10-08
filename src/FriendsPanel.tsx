@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink, Link, X } from 'lucide-react';
 import type { useFriends } from './useFriends';
-import type { Designs } from './scene/OfficeScene';
+type Designs = Record<string, { vertical: string; props: string[]; description?: string }>;
 import { privateSharing, type ShareSettings } from '../shared/public-office';
 import { hangouts, VISITOR_LIMIT, type Hangout } from '../shared/neighborhood';
 import { summarizeAgents } from '../shared/protocol';

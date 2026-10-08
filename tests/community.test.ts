@@ -8,9 +8,8 @@ import { createDemo } from '../src/demo';
 import { agentKey, agentRole, projectsOf, sessionsOf, eventSchema } from '../shared/protocol';
 import { privateSharing, publicOffice, shareSchema } from '../shared/public-office';
 import { neighborhood, publicLinkId } from '../shared/neighborhood';
-import { cameraDistance, cameraFar } from '../shared/camera';
-import { officePlan } from '../shared/layout';
-import { OfficeSimulation } from '../shared/simulation';
+import { planBuilding } from '../shared/building';
+import { World } from '../src/world/sim';
 
 describe('public office boundaries',()=>{
   it('projects only approved fields, including when new private fields exist',()=>{
@@ -60,22 +59,16 @@ describe('repository and harness identity',()=>{
     }finally{if(resolve(directory).startsWith(resolve('.local')+sep+'identity-'))await rm(directory,{recursive:true,force:true});}
   },15000);
 });
-describe('camera and social motion',()=>{
-  it('keeps the near plane outside the visible ground at the lowest orbit and widest zoom',()=>{
-    for(const height of [540,1080,2160,4320]){
-      const distance=cameraDistance(40,90,height),angle=Math.PI/2-Math.PI/2.35;
-      expect(distance*Math.tan(angle)).toBeGreaterThan(height/(2*4));
-      expect(cameraFar(40,90,height)).toBeGreaterThan(distance+Math.hypot(40,90));
-    }
-  });
-  it('invites only resting characters without changing observed activity and sends them home when work returns',()=>{
-    const office=createDemo(),plan=officePlan(projectsOf(office)),sim=new OfficeSimulation(plan),now=Date.now();sim.sync(office.agents,now);
-    const busy=office.agents.find(a=>a.state==='coding')!,idle=office.agents.filter(a=>a.state==='idle');
-    expect(sim.gather([busy.key],'coffee')).toBe(0);
-    expect(sim.gather(idle.map(a=>a.key),'duck')).toBe(2);
-    expect(idle.every(a=>a.state==='idle')).toBe(true);
-    sim.sync(office.agents.map(a=>idle.some(b=>b.key===a.key)?{...a,state:'coding',at:now+100}:a),now+100);
-    for(const a of idle)expect(sim.bodies.get(a.key)?.target).toBe('home');
+describe('social motion',()=>{
+  it('invites only resting characters to hangouts and sends them back to their desks when work returns',()=>{
+    const office=createDemo(),plan=planBuilding(projectsOf(office)),world=new World(plan),now=Date.now();
+    world.sync(office.agents,now);world.sync(office.agents,now);
+    const idle=office.agents.filter(a=>a.state==='idle');
+    for(const a of idle){const b=world.bodies.get(a.key)!;b.timer=0;}
+    const invited=world.gatherAtCafe(['pizza']);
+    expect(invited).toBe(idle.length);
+    for(const a of office.agents.filter(a=>a.state==='coding'))expect(world.bodies.get(a.key)!.goal.kind).toBe('seat');
+    world.sync(office.agents.map(a=>idle.some(b=>b.key===a.key)?{...a,state:'coding',at:now+100}:a),now+100);
+    for(const a of idle)expect(world.bodies.get(a.key)!.goal.kind).toBe('seat');
   });
 });
-

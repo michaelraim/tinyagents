@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { eventSchema } from './protocol.ts';
 export const batchSchema = z.object({ events: z.array(eventSchema).min(1).max(20) }).strict();
+/** The batch shell only; each event is validated on its own so one bad event can't block the rest. */
+export const batchEnvelopeSchema = z.object({ events: z.array(z.unknown()).min(1).max(20) }).strict();
 export const officeIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export async function digest(secret: string): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret)))].map(v => v.toString(16).padStart(2, '0')).join('');

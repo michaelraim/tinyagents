@@ -1,0 +1,62 @@
+/*
+ * Neon skin for the account, connect and friends dialogs. These components predate
+ * the rebrand; this sheet loads last and restyles them without touching their logic.
+ */
+.connect-dialog, .game-panel.friends, .pairing-card {
+  --dn-pink: #ff4fd8; --dn-cyan: #3ee8ff; --dn-violet: #9b6bff; --dn-text: #f3f0ff; --dn-dim: #a59fd0;
+  background: rgba(18, 15, 42, 0.97) !important; color: var(--dn-text) !important;
+  border: 2px solid var(--dn-pink) !important; border-radius: 18px !important;
+  box-shadow: 0 0 0 1px #000a, 0 0 30px #ff4fd855, 0 24px 60px #000c !important;
+  font-family: 'Nunito Sans', system-ui, sans-serif;
+}
+.connect-dialog::backdrop { background: rgba(8, 6, 20, 0.72) !important; backdrop-filter: blur(6px); }
+.connect-dialog h2, .game-panel.friends h2, .pairing-card h1, .pairing-card h2 {
+  font: 700 22px/1.2 'Silkscreen', monospace !important; color: var(--dn-text) !important; letter-spacing: 0 !important; text-shadow: 0 0 12px #ff4fd866;
+}
+.connect-dialog h3, .game-panel.friends h3 { font: 700 13px/1.2 'Silkscreen', monospace !important; color: var(--dn-text) !important; }
+.connect-dialog p, .connect-dialog li, .connect-dialog label, .game-panel.friends p, .pairing-card p { color: #ddd7ff !important; }
+.connect-dialog .muted, .connect-dialog .eyebrow, .connect-dialog .account-fine, .connect-dialog .privacy-note, .connect-dialog .install-note,
+.game-panel.friends .social-footnote, .game-panel.friends .panel-intro { color: var(--dn-dim) !important; }
+.connect-dialog .eyebrow { font: 400 15px 'Tiny5', sans-serif !important; letter-spacing: 0.5px !important; }
+.connect-dialog a, .game-panel.friends a { color: var(--dn-cyan) !important; }
+
+.connect-dialog .primary, .game-panel.friends .primary, .pairing-card .primary {
+  background: linear-gradient(90deg, #ff4fd8, #9b6bff) !important; color: #fff !important; border: 2px solid var(--dn-pink) !important;
+  border-radius: 12px !important; box-shadow: 0 0 18px #ff4fd877, 0 4px 0 #6b1d64 !important; font: 700 13px 'Silkscreen', monospace !important;
+}
+.connect-dialog .secondary, .connect-dialog .text-button, .connect-dialog .social-login, .game-panel.friends .secondary, .pairing-card .secondary {
+  background: #1d1844 !important; color: var(--dn-text) !important; border: 2px solid #3ee8ff88 !important; border-radius: 12px !important;
+  box-shadow: 0 0 12px #3ee8ff33 !important; font-weight: 800 !important;
+}
+.connect-dialog .secondary:hover, .connect-dialog .social-login:hover { border-color: var(--dn-cyan) !important; box-shadow: 0 0 18px #3ee8ff66 !important; }
+.connect-dialog .close-dialog, .connect-dialog .icon-button, .game-panel.friends .icon-button {
+  background: #ffffff12 !important; color: var(--dn-text) !important; border: 1px solid #ffffff2a !important; border-radius: 10px !important;
+}
+.connect-dialog input, .connect-dialog select, .connect-dialog textarea, .game-panel.friends input, .game-panel.friends textarea {
+  background: #1b1838 !important; color: var(--dn-text) !important; border: 1.5px solid #ffffff33 !important; border-radius: 10px !important;
+}
+.connect-dialog pre, .connect-dialog code { background: #0d0b1f !important; color: #b6ff3b !important; border: 1px solid #b6ff3b44 !important; border-radius: 10px; }
+.connect-dialog .segmented, .connect-dialog .install-choice { background: #ffffff0d !important; border-color: #ffffff22 !important; }
+.connect-dialog .segmented button, .connect-dialog .install-choice button { color: var(--dn-text) !important; }
+.connect-dialog .segmented .selected, .connect-dialog .segmented [aria-pressed='true'], .connect-dialog .install-choice .selected { background: var(--dn-violet) !important; color: #fff !important; }
+.connect-dialog .setup-step, .connect-dialog .account-connection, .connect-dialog .account-details, .connect-dialog .account-notice, .connect-dialog .install-plugins,
+.game-panel.friends .friend-card, .game-panel.friends .share-office, .game-panel.friends .friend-form {
+  background: #ffffff08 !important; border: 1px solid #ffffff1c !important; border-radius: 12px !important; color: var(--dn-text) !important;
+}
+.connect-dialog .form-error { color: #ff8fa6 !important; }
+.connect-dialog .dialog-icon img, .connect-dialog .brand-wordmark { filter: drop-shadow(0 0 8px #ff4fd866); }
+.connect-dialog .brand-wordmark, .connect-dialog .brand-wordmark * { color: var(--dn-text) !important; }
+.game-panel.friends { backdrop-filter: blur(10px); }
+
+/* The wordmark, wherever the older components show it. */
+.brand-wordmark { font: 700 1em/1 'Silkscreen', monospace !important; letter-spacing: 0 !important; }
+.brand-wordmark .brand-tiny { color: #fff !important; }
+.brand-wordmark .brand-agents {
+  background: linear-gradient(90deg, #ffd23f, #ff4fd8 45%, #9b6bff 70%, #3ee8ff); -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+
+/* Page chrome while the world loads. */
+html, body { background: #0d0b1f; }
+.world-loading { background: #0d0b1f !important; color: #ff4fd8 !important; font: 700 14px 'Silkscreen', monospace !important; text-shadow: 0 0 12px #ff4fd8aa; letter-spacing: 1px; }
+.pairing-page { background: radial-gradient(1000px 520px at 75% -10%, #2a1c5c 0%, transparent 60%), #0d0b1f !important; color: #ece8ff !important; }
+.pairing-page .pairing-footer, .pairing-page footer { color: #a59fd0 !important; }

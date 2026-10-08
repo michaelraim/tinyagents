@@ -1,5 +1,7 @@
 # tinyAGENTS: product and implementation plan
 
+> Superseded for the office experience by [rebuild-plan.md](rebuild-plan.md). The state model, architecture and privacy notes below still apply.
+
 ## Product thesis
 
 A developer should be able to glance at a small, lively office and understand who is working, who needs help, and which project has momentum. The reason to come back is affection plus useful awareness. Cosmetic rewards must never hide a blocked agent, falsify productivity, or imply unobserved progress.

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { applyEvent, emptyOffice, eventSchema, effectiveState, projectsOf, sessionsOf, summarizeAgents, type OfficeEvent } from '../shared/protocol';
-import { layoutRooms } from '../shared/layout';
 import { normalizeHook } from '../bridge/normalize.mjs';
 import { digest, matches, viewerCookie, viewerFromCookie, validEventTime } from '../shared/security';
 const event = (overrides: Partial<OfficeEvent> = {}): OfficeEvent => ({ version: 1, id: 'e1', at: 1000, provider: 'codex', project: { id: 'p1', name: 'Orbit', theme: 'studio' }, sessionId: 's1', agentId: 'a1', name: 'Milo', state: 'coding', activity: 'Building', phase: 'state', ...overrides });
@@ -43,14 +42,6 @@ describe('honest office state', () => {
     const office = applyEvent(emptyOffice(), event());
     expect(effectiveState(office.agents[0], 302_000)).toBe('offline');
     expect(effectiveState(office.agents[0], 2000)).toBe('coding');
-  });
-  it('adds annexes without losing agents', () => {
-    let office = emptyOffice();
-    for (let i = 0; i < 17; i++) office = applyEvent(office, event({ id: `e${i}`, agentId: `a${i}` }));
-    const rooms = layoutRooms(projectsOf(office));
-    expect(rooms.map(r => r.agents.length)).toEqual([12, 5]);
-    expect(new Set(rooms.flatMap(r => r.seats.map(s => s.agent.key))).size).toBe(17);
-    expect(rooms[0].session.key).toBe(rooms[1].session.key);
   });
   it('bounds retained history and retry IDs', () => {
     let office = emptyOffice();

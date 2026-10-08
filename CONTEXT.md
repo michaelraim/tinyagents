@@ -24,10 +24,12 @@ A playful view of observed coding activity, with private offices and optional pu
 
 **Neighborhood**: A personal view combining one's office with selected public friend offices and common areas.
 
-**Hangout**: A cosmetic social scene involving characters between tasks. It never sends instructions to a real agent or changes observed work state.
+**Office life**: Random cosmetic happenings (pizza, birthdays, a broken coffee machine, a visiting cat). Always labelled as office life; never derived from or sent to real agents.
+
+**Game layer**: Stars, coins, moods, daily goals and shop upgrades. Earned only from observed events, stored in the viewer's browser, and never sent to an agent.
 
 **Office clock**: The owner's registered IANA time zone. It drives the office's local time and daily lighting, regardless of the visitor's location.
 
-**Campus plan**: Generated room footprints and walkable connections derived from the current projects, sessions and headcount. It has no predefined project positions.
+**Building**: The generated office layout: a corridor with one room per project (a desk pod per session) plus a lobby, café and lounge. Rendering and navigation share it.
 
 **Observed conversation**: An explicit delegation, return or direct-message event with a resolvable sender and recipient. It contains no message text. It is distinct from cosmetic break chatter.

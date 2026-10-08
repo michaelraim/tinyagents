@@ -12,7 +12,7 @@ export function useOffice() {
   const account = useAccount();
   const [officeId, setOfficeId] = useState(() => saved('sidequest.office'));
   const [visitId, setVisitId] = useState(initialVisit);
-  const [mode, setMode] = useState<'demo' | 'live' | 'visit'>(() => initialVisit() ? 'visit' : location.pathname==='/demo' ? 'demo' : 'live');
+  const [mode, setMode] = useState<'demo' | 'live' | 'visit'>(() => initialVisit() ? 'visit' : (location.pathname==='/demo'||location.pathname==='/world') ? 'demo' : 'live');
   const [office, setOffice] = useState(() => mode !== 'demo' ? emptyOffice() : createDemo());
   const [publicView, setPublicView] = useState<PublicOffice>();
   const [connection, setConnection] = useState(mode !== 'demo' ? 'Connecting…' : 'Demo office');

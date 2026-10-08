@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
-import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
-import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security';
+import { applyEvent, emptyOffice, eventSchema, pruneOffice, type OfficeState } from '../shared/protocol';
+import { batchEnvelopeSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security';
 import { shareSchema, privateSharing, publicOffice, type ShareSettings } from '../shared/public-office';
 import { clockSettingsSchema, timeZoneSchema } from '../shared/clock';
 import { createAuth, providers, type AuthEnv } from './auth';
@@ -263,16 +263,20 @@ export class Office extends DurableObject<Env> {
       const connection = await this.ingest(request);
       if (!connection) return json({ error: 'Invalid ingest credentials' }, 401);
       if (this.limited('events', 600)) return json({ error: 'Event rate limit reached' }, 429);
-      let input; try { input = batchSchema.safeParse(await readBody(request)); } catch { return json({ error: 'Invalid body' }, 400); }
-      if (!input.success || input.data.events.some(e => !validEventTime(e.at))) return json({ error: 'Invalid event batch' }, 400);
-      for (const event of input.data.events) this.record.office = applyEvent(this.record.office, event);
+      let input; try { input = batchEnvelopeSchema.safeParse(await readBody(request)); } catch { return json({ error: 'Invalid body' }, 400); }
+      if (!input.success) return json({ error: 'Invalid event batch' }, 400);
+      // Accept each valid event on its own. Invalid ones are acknowledged and dropped so a
+      // single bad event can never wedge the observer's outbox.
+      const events = input.data.events.flatMap(raw => { const parsed = eventSchema.safeParse(raw); return parsed.success && validEventTime(parsed.data.at) ? [parsed.data] : []; });
+      for (const event of events) this.record.office = applyEvent(this.record.office, event);
+      this.record.office = pruneOffice(this.record.office, Date.now());
       const receivedAt = Date.now(), reporting = connection.reporting ?? { lastReceivedAt: receivedAt, providers: {} };
       reporting.lastReceivedAt = receivedAt;
-      for (const event of input.data.events) reporting.providers[event.provider] = receivedAt;
+      for (const event of events) reporting.providers[event.provider] = receivedAt;
       connection.reporting = reporting;
       await this.ctx.storage.put('state', this.record);
       await this.broadcast();
-      return json({ accepted: input.data.events.length, revision: this.record.office.revision });
+      return json({ accepted: events.length, rejected: input.data.events.length - events.length, revision: this.record.office.revision });
     }
     const officeId = url.searchParams.get('office') || '';
     if (!request.headers.has(accountHeader) && !await canView(viewerFromCookie(request.headers.get('Cookie') || '', officeId), this.record)) return json({ error: 'Viewer authentication required' }, 401);

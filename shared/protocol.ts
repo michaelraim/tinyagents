@@ -69,6 +69,12 @@ export function applyEvent(office: OfficeState, event: OfficeEvent): OfficeState
   return { ...office, timeZone: office.timeZone ?? event.timeZone, agents: agents.slice(-160), events: [event, ...office.events].slice(0, 80), seen, revision: office.revision + 1 };
 }
 
+/** Forget agents nobody has heard from in a day, so finished and killed sessions don't pile up forever. */
+export function pruneOffice(office: OfficeState, now: number, maxAge = 24 * 3600_000): OfficeState {
+  const agents = office.agents.filter(a => now - a.at < maxAge);
+  return agents.length === office.agents.length ? office : { ...office, agents, revision: office.revision + 1 };
+}
+
 export function effectiveState(agent: Agent, now: number): AgentState {
   // Silence is missing telemetry, never evidence that the agent took a break.
   return now - agent.at > 5 * 60_000 && !['done', 'offline', 'idle'].includes(agent.state) ? 'offline' : agent.state;

@@ -109,9 +109,9 @@ Project identities use a locally normalized Git origin fingerprint, falling back
 
 `OfficeState.timeZone` is optional for old records. Browser signup supplies it; otherwise the first observer event with a valid IANA zone registers it. Only an owner-authorized `/api/clock` call changes an established zone. The update is stored and broadcast to private and public viewers. Public projection includes the zone, but excludes private collaboration events.
 
-`shared/campus.ts` packs workload-sized rectangles by evaluating the current frontier, balancing compactness and project proximity. It routes and merges circulation tiles outside those rectangles. `shared/layout.ts` supplies furniture, capacities and clearances; the scene and navigation consume the same result. Twelve desks is a per-room capacity policy, not a predefined room-size template. Empty office state has only shared amenities. Large state changes can reflow the campus. Agent states alone do not rebuild its geometry.
+`shared/building.ts` lays out the office as one building: a corridor with project rooms on both sides, plus a lobby, café and lounge. Each project is a room and each session a desk pod. Furniture, hangout spots and navigation obstacles all come from the same plan, so rendering and walking never disagree. The building is re-planned only when the set of agents changes, not when their states change; project colours stay stable for a viewer.
 
-The optional event `collaboration` field carries only a kind and hashed target IDs. Message animation requires a unique matching recipient within the same provider/client/office scope; no text parsing or guessed recipient names. The frontend suppresses historical replay on initial connection. Public visits receive no collaboration history. Cosmetic social invitations reserve actual navigation destinations, wait for the other character and yield when work resumes.
+The optional event `collaboration` field carries only a kind and hashed target IDs. Public visits receive no collaboration history. Subagent reports and new hires in the office are driven by observed subagent start and stop events.
 
 ## Limits and monitoring
 
@@ -152,6 +152,6 @@ node scripts/check-deployment.mjs https://tinyagents.michael-325.workers.dev
 
 Change observer source under `bridge/`; do not edit generated copies in `plugins/`. Bump the version in `scripts/build-plugins.mjs` for plugin updates. `npm run build` rebuilds both client packages.
 
-Change voxel recipes under `shared/`, then run `npm run assets:build`. Generated models, previews and packs are committed.
+Characters and furniture are Kenney CC0 assets under `public/assets/kenney/` (licences included). Topic props are procedural, in `src/world/Themes.tsx`.
 
 Local hooks need client enablement and trust. Codex cloud-orchestrated sessions cannot execute the local observer. Host event coverage varies: a missing parent falls back to the root session, and no hook is evidence of missing telemetry, not proof that an agent is idle.

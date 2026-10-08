@@ -56,11 +56,11 @@ No model API key, repository clone, npm install or local web server is needed to
 
 New offices save the time zone of the computer connected by the plugin (or the browser when created on the website). Older offices pick up the first connected observer's time zone, unless the owner has already set one. Visitors see the owner's local time. A second harness cannot move an established office clock.
 
-To change it: **Office settings → Office clock → Use my current time zone → Save office clock** (legacy offices still ask for the owner file until attached to an account). You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. The clock button cycles through night/day previews and back to the local clock.
+To change it: **⚙ Settings → Office clock → Use my current time zone → Save office clock** (legacy offices still ask for the owner file until attached to an account). You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. Settings can preview day or night; Auto returns to the office clock.
 
-Rooms, room sizes, shared-space sizes, placement and connecting paths are generated from the actual teams. Sessions grow their own suites, with a little spare desk capacity. When a suite fills, new arrivals get an annex sized to their team (up to twelve agents per new suite). Existing rooms, desks, corridors and the camera stay in place during live updates. Use Fit office to frame the expanded campus. Rooms belonging to the same project are encouraged to stay near one another. Reloading the page generates a fresh layout from the current teams; it is not yet a saved building blueprint.
+Each project gets one room along the building's corridor; each session gets a desk pod inside it, with spare desks so rooms look furnished. New projects add rooms; a growing team widens its room. The building is re-planned when agents arrive or leave, never when they just change what they're doing.
 
-Try **+ Project**, **+ Session**, and **+ Subagent** in the demo. **Reset demo** restores the sample crew. Live offices only grow from real observer events.
+In the demo, open **⚙ Settings** to add a project or a new hire, or to trigger office events (pizza, birthday, broken coffee machine, cat, rain). Live offices only grow from real observer events.
 
 ## Conversations and little feelings
 
