@@ -44,6 +44,23 @@ try {
   const headers = { Authorization: `Bearer ${ingestKey}`, 'X-Office-Id': officeId };
   assert.equal((await post('/api/connection', {}, { ...headers, Authorization: `Bearer ${viewerKey}` })).status, 401);
   assert.equal((await post('/api/connection', {}, headers)).status, 200);
+  // A client can upload its body slowly. The edge must finish receiving it before
+  // a body-independent Durable Object response releases the request's stream.
+  let sentChunks = 0, uploadFinished = false;
+  const slowBody = new ReadableStream({
+    async pull(controller) {
+      if (sentChunks++ === 0) controller.enqueue(new TextEncoder().encode('{"padding":"'));
+      else {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        controller.enqueue(new TextEncoder().encode('test"}'));
+        uploadFinished = true;
+        controller.close();
+      }
+    },
+  });
+  assert.equal((await request('/api/connection', { method: 'POST', headers, body: slowBody, duplex: 'half' })).status, 200, 'Slow request bodies must complete before the response');
+  assert.equal(uploadFinished, true, 'Do not respond while the incoming request body is still streaming');
+  assert.equal((await request('/api/connection', { method: 'POST', headers, body: 'x'.repeat(65537) })).status, 400, 'Buffering must retain the 64 KiB request limit');
   assert.equal((await post('/api/session', { officeId, viewerKey: ingestKey })).status, 401);
   assert.equal((await post('/api/session', { officeId, viewerKey })).status, 200);
   const second = await post('/api/offices', signup);

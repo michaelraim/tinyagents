@@ -4,12 +4,15 @@ import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromC
 interface Env { OFFICES: DurableObjectNamespace<Office>; ASSETS: Fetcher; REGISTRATION_KEY?: string; PUBLIC_SIGNUP?: string; BUILD_SHA?: string; SIGNUP_LIMITER: RateLimit; AUTH_LIMITER: RateLimit }
 type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string };
 const json = (data: unknown, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
-async function readBody(request: Request) {
+async function readBytes(request: Request) {
   const reader = request.body?.getReader(); if (!reader) throw new Error('Missing body');
   let size = 0; const chunks: Uint8Array[] = [];
   for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 65536) { await reader.cancel(); throw new Error('Body too large'); } chunks.push(value); }
   const all = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { all.set(chunk, offset); offset += chunk.length; }
-  const parsed = JSON.parse(new TextDecoder().decode(all));
+  return all;
+}
+async function readBody(request: Request) {
+  const parsed = JSON.parse(new TextDecoder().decode(await readBytes(request)));
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid body');
   return parsed;
 }
@@ -17,9 +20,13 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
-    const origin = request.headers.get('Origin');
-    if (origin && origin !== url.origin) return json({ error: 'Origin not allowed' }, 403);
     try {
+      // Finish the bounded incoming upload before a Durable Object can answer.
+      // Forwarding a live body to a route that doesn't read it races workerd's
+      // stream cleanup, especially for slow uploads or early auth rejection.
+      if (request.body) request = new Request(request, { body: await readBytes(request) });
+      const origin = request.headers.get('Origin');
+      if (origin && origin !== url.origin) return json({ error: 'Origin not allowed' }, 403);
       const publicSignup = env.PUBLIC_SIGNUP === 'true';
       if (request.method === 'GET' && url.pathname === '/api/health') return json({ ok: true, storage: 'cloudflare', registration: publicSignup || !!env.REGISTRATION_KEY, publicSignup, build: env.BUILD_SHA ?? 'local' });
       if (request.method === 'POST' && url.pathname === '/api/offices') {
@@ -48,7 +55,7 @@ export default {
       const officeId = request.headers.get('X-Office-Id') || url.searchParams.get('office') || '';
       if (request.headers.has('X-Office-Id') && url.searchParams.has('office') && request.headers.get('X-Office-Id') !== url.searchParams.get('office')) return json({ error: 'Office IDs must match' }, 400);
       if (!officeIdPattern.test(officeId)) return json({ error: 'Invalid office ID' }, 400);
-      return env.OFFICES.get(env.OFFICES.idFromName(officeId)).fetch(request);
+      return await env.OFFICES.get(env.OFFICES.idFromName(officeId)).fetch(request);
     } catch (error) {
       if (error instanceof SyntaxError || (error instanceof Error && /body/i.test(error.message))) return json({ error: 'Invalid or oversized request' }, 400);
       return json({ error: 'The office is temporarily unavailable' }, 500);
