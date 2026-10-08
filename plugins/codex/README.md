@@ -1,4 +1,4 @@
-# Sidequest for Codex
+# tinyAGENTS for Codex
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
@@ -7,7 +7,7 @@ Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 3. From this extracted plugin directory, pair your machine:
 
 ```sh
-node scripts/setup.mjs /absolute/path/to/sidequest.config.json
+node scripts/setup.mjs /absolute/path/to/tinyagents.config.json
 node scripts/office.mjs doctor
 ```
 
@@ -22,7 +22,7 @@ codex plugin marketplace add michaelraim/tinyagents
 codex plugin add sidequest-office@tinyagents
 ```
 
-Restart Codex, enable the plugin, and review/trust its hooks through /hooks. If the installed client lacks the plugin CLI, open the cloned tinyagents repository in Codex and select Tinyagents in the plugin directory. This package supports local Codex sessions. Cloud-orchestrated sessions cannot run these local command hooks.
+Restart Codex, enable the plugin, and review/trust its hooks through /hooks. If the installed client lacks the plugin CLI, open the cloned tinyagents repository in Codex and select tinyAGENTS in the plugin directory. This package supports local Codex sessions. Cloud-orchestrated sessions cannot run these local command hooks.
 
 The repository is public. For a local checkout, replace michaelraim/tinyagents with the absolute path to the repository (not to this plugin folder). Start a new session or submit a request; earlier sessions are not automatically discovered.
 

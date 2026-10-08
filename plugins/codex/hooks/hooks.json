@@ -1,5 +1,5 @@
 {
-  "description": "Sidequest activity observer. Sends allowlisted metadata only; never changes agent decisions.",
+  "description": "tinyAGENTS activity observer. Sends allowlisted metadata only; never changes agent decisions.",
   "hooks": {
     "SessionStart": [
       {

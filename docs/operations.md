@@ -1,4 +1,4 @@
-# Tinyagents operations
+# tinyAGENTS operations
 
 The owner-facing checklist is in [launch-guide.md](launch-guide.md). End-user setup is served at [/setup.html](https://tinyagents.michael-325.workers.dev/setup.html).
 

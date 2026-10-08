@@ -1,4 +1,4 @@
-# Sidequest: product and implementation plan
+# tinyAGENTS: product and implementation plan
 
 ## Product thesis
 

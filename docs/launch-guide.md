@@ -1,4 +1,4 @@
-# Tinyagents: what is left to do
+# tinyAGENTS: what is left to do
 
 Homepage: **https://tinyagents.michael-325.workers.dev**
 
@@ -14,9 +14,11 @@ Every push to **main** runs checks on Windows and Linux. When both pass, GitHub 
 
 See progress under [GitHub Actions](https://github.com/michaelraim/tinyagents/actions).
 
+The product is now **tinyAGENTS**. Existing connections still work. The technical plugin ID `sidequest-office`, the `~/.sidequest` folder, and older downloaded files remain supported so installed observers do not get disconnected. New downloads are named `tinyagents.config.json` and `tinyagents.recovery.json`.
+
 ## On your current Windows computer
 
-Your private office has been created. This computer is paired, and the Tinyagents observer is installed for both Codex and Claude Code. The connection check to Cloudflare passed.
+Your private office has been created. This computer is paired, and the tinyAGENTS observer is installed for both Codex and Claude Code. The connection check to Cloudflare passed.
 
 What is left for you:
 
@@ -57,7 +59,7 @@ Small 3D bubbles anchored above each character show its observed state and a pla
 
 The updated observers report subagent assignments and returns. Recognized direct-message tools can also report a hashed recipient ID. When both characters can be identified, they acknowledge each other at their desks or gather if both are between tasks. Unknown recipients and unsupported hook paths produce no invented conversation. Raw message text is never uploaded. These handoff scenes use the private activity stream; public visitors do not receive that history.
 
-Coffee chats, hallway hellos, rubber-duck clubs and arcade rivalries also happen between resting characters. These are clearly labeled break scenes. They never cause real agents to send messages. Restart the clients after updating to observer **0.5.0** to get the new metadata.
+Coffee chats, hallway hellos, rubber-duck clubs and arcade rivalries also happen between resting characters. These are clearly labeled break scenes. They never cause real agents to send messages. Restart the clients after updating to observer **0.5.1** to get the new metadata.
 
 ## Share your office and visit friends
 

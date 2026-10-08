@@ -12,12 +12,12 @@ for (const provider of ['codex', 'claude']) {
     type: 'command', command, ...(provider === 'codex' ? { commandWindows: command } : {}),
     async: true, timeout: 3,
   }] }]]));
-  files['hooks/hooks.json'] = JSON.stringify({ description: 'Sidequest activity observer. Sends allowlisted metadata only; never changes agent decisions.', hooks }, null, 2);
-  const manifest = { name: 'sidequest-office', version: '0.5.0', description: 'A living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
+  files['hooks/hooks.json'] = JSON.stringify({ description: 'tinyAGENTS activity observer. Sends allowlisted metadata only; never changes agent decisions.', hooks }, null, 2);
+  const manifest = { name: 'sidequest-office', version: '0.5.1', description: 'tinyAGENTS — a living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
   if (provider === 'codex') files['plugin.json'] = JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', ...manifest, extensions: { 'com.openai': { hooks: './hooks/hooks.json' } } }, null, 2);
   else files['.claude-plugin/plugin.json'] = JSON.stringify(manifest, null, 2);
   for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs']) files[`scripts/${file}`] = await readFile(`bridge/${file}`, 'utf8');
-  files['README.md'] = `# Sidequest for ${provider === 'codex' ? 'Codex' : 'Claude Code'}
+  files['README.md'] = `# tinyAGENTS for ${provider === 'codex' ? 'Codex' : 'Claude Code'}
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
@@ -26,7 +26,7 @@ Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 3. From this extracted plugin directory, pair your machine:
 
 \`\`\`sh
-node scripts/setup.mjs /absolute/path/to/sidequest.config.json
+node scripts/setup.mjs /absolute/path/to/tinyagents.config.json
 node scripts/office.mjs doctor
 \`\`\`
 
@@ -41,7 +41,7 @@ codex plugin marketplace add michaelraim/tinyagents
 codex plugin add sidequest-office@tinyagents
 \`\`\`
 
-Restart Codex, enable the plugin, and review/trust its hooks through /hooks. If the installed client lacks the plugin CLI, open the cloned tinyagents repository in Codex and select Tinyagents in the plugin directory. This package supports local Codex sessions. Cloud-orchestrated sessions cannot run these local command hooks.` : `Run:
+Restart Codex, enable the plugin, and review/trust its hooks through /hooks. If the installed client lacks the plugin CLI, open the cloned tinyagents repository in Codex and select tinyAGENTS in the plugin directory. This package supports local Codex sessions. Cloud-orchestrated sessions cannot run these local command hooks.` : `Run:
 
 \`\`\`sh
 claude plugin marketplace add michaelraim/tinyagents

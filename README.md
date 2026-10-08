@@ -1,4 +1,6 @@
-# Sidequest — an office for your coding agents
+# tinyAGENTS
+
+Small crew. Big things. A living office for your coding agents.
 
 A public beta of a living Three.js coworking office for Codex and Claude Code. A reference video informed the cutaway rooms, miniature furniture, and expressive coworkers; all geometry here is original procedural Three.js geometry.
 

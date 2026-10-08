@@ -1,0 +1,96 @@
+/* Shared tinyAGENTS game chrome. Project colors still belong to their rooms. */
+:root{font-family:var(--ta-body);color:var(--ta-ink);background:#bcccd0}
+button:hover{color:var(--ta-ink)}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:3px solid #397a9b;outline-offset:3px}
+.glass,.world-brand,.world-connection{background:#fff9edf5;border-color:#fffdf7;box-shadow:0 4px 0 #253b5824,0 10px 25px #253b5810;color:var(--ta-ink)}
+.world-brand{gap:10px;padding-right:20px}
+.world-brand strong{font:600 26px/1 var(--ta-display);letter-spacing:-.7px;color:var(--ta-ink)}
+.world-brand strong>.brand-wordmark{font-size:inherit;vertical-align:baseline;color:inherit;margin:0}
+.landing .landing-nav .landing-brand{font-size:28px}
+.world-brand small{color:var(--ta-muted);letter-spacing:1.4px}
+.world-brand img{border-radius:13px;box-shadow:none}
+.world-brand:hover img{transform:rotate(-7deg);transition:transform .2s}
+.office-stats,.office-stats svg,.mode-indicator,.floor-map>div,.floor-map p,.floor-map button,.identity-legend,.identity-legend strong,.game-hint,.world-event p,.world-event time{color:var(--ta-muted)}
+.office-stats b,.world-event strong{color:var(--ta-ink)}
+.help-alert{color:var(--ta-orange-dark);border-color:var(--ta-line)}
+.live-dot,.mode-indicator>i{background:#3b997c;box-shadow:0 0 0 3px #b4e1ce50}
+.mode-indicator.demo>i{background:#598bb0;box-shadow:none}
+.hud-button,.primary,.place-prop{background:var(--ta-ink);color:var(--ta-paper);border-color:#3b5471;box-shadow:0 3px 0 #16283d;font-weight:800}
+.hud-button:hover,.primary:hover,.place-prop:hover{background:#375776;color:var(--ta-paper);transform:translateY(-1px)}
+.world-event{background:#fff9edeF;border-color:#fffdf7;border-left-color:var(--ta-mint);box-shadow:0 3px 0 #253b5812}
+.room-rail button{background:#fff9edf2;border-color:#fffdf7;color:var(--ta-ink);box-shadow:0 3px 0 #253b5820}
+.room-rail small,.room-rail em{color:var(--ta-muted)}
+.room-rail button:hover{background:var(--ta-blue);color:var(--ta-ink)}
+.room-rail button.active{background:var(--ta-ink);border-color:#4a627d;color:var(--ta-paper);box-shadow:0 3px 0 #16283d}
+.room-rail button.active small{color:#d4e7e3}
+.game-dock>button,.time-control button,.camera-tools button{color:var(--ta-muted)}
+.game-dock>button.active{color:var(--ta-ink);background:var(--ta-mint);box-shadow:inset 0 -3px #88bda8}
+.game-dock>button:hover,.camera-tools button:hover{background:var(--ta-blue);color:var(--ta-ink)}
+.time-control button:first-child{background:var(--ta-ink);color:var(--ta-paper);box-shadow:0 3px 0 #16283d}
+.time-control button.active{background:var(--ta-blue);color:var(--ta-ink)}
+.time-control button:first-child.active{background:var(--ta-orange);color:var(--ta-ink);box-shadow:0 3px 0 #d17b4e}
+.game-dock .weather-button{color:var(--ta-orange-dark)}
+.dock-divider,.camera-tools>span{background:var(--ta-line)}
+.decorate-button{background:var(--ta-orange);border-color:#ffba8e;box-shadow:0 4px 0 #b86c4540;color:var(--ta-ink);font-weight:800}
+.decorate-button small{color:#694836}.decorate-button:hover{background:#ffb07f;color:var(--ta-ink)}
+.demo-growth,.demo-growth>span,.campus-perks>span,.campus-perks>small{color:var(--ta-muted)}
+.demo-growth button,.campus-perks button{background:var(--ta-blue);color:var(--ta-ink);border-color:var(--ta-line);box-shadow:0 2px 0 #253b5814}
+.demo-growth button:hover,.campus-perks button:hover{background:var(--ta-mint);color:var(--ta-ink)}
+.world-toast,.reward-pop{background:#ffe1bf;border-color:#fff0dd;color:#704627;box-shadow:0 4px 0 #253b5820}
+.prop-caption,.prop-prompt,.world-location{background:var(--ta-paper);color:var(--ta-ink);border-color:#fffdf7;box-shadow:0 3px 0 #253b5820}
+.prop-prompt small,.world-location small{color:var(--ta-muted)}
+.agent-inspector,.game-panel,.connect-dialog{color:var(--ta-ink)}
+.agent-heading h2,.panel-heading h2,.empty-office h2{color:var(--ta-ink);font-family:var(--ta-display);font-weight:600;letter-spacing:-.4px}
+.agent-heading p,.panel-heading small,.inspector-close,.panel-heading>button,.inspector-project,.inspector-project>span,.work-bubble p,.agent-feeling,.reaction-status,.crew>span,.crew>button,.identity-details,.identity-details button,.settings-list button,.settings-list small,.settings-list>p,.settings-list button>b,.activity-list p,.activity-list small,.activity-list time,.coworker-state,.coworker-list small{color:var(--ta-muted)}
+.work-bubble,.crew>button,.search{background:#e8f1ed;border-color:#d7e5dd}
+.work-bubble strong,.coworker-list strong,.activity-list strong,.search input{color:var(--ta-ink)}
+.portrait{background:var(--ta-mint);color:var(--ta-ink);border-color:#d9eee4;box-shadow:0 3px 0 #253b5820}
+.portrait.claude{background:var(--ta-orange);border-color:#ffddc1;color:var(--ta-ink)}
+.portrait small{background:var(--ta-paper);border-color:var(--ta-line);color:var(--ta-ink)}
+.agent-actions,.inspector-project,.coworker-list>button,.activity-list>div,.settings-list button{border-color:var(--ta-line)}
+.agent-actions>button{background:var(--ta-blue);border-color:#ccdae3;color:var(--ta-ink);box-shadow:0 2px 0 #253b5817}
+.agent-actions .follow-button,.agent-actions .follow-button.active{background:var(--ta-mint);border-color:#90c4b0;color:var(--ta-ink)}
+.agent-actions>button:hover{background:#ffdfbe}
+.connect-dialog{background:var(--ta-paper);border:2px solid #fffdf7;box-shadow:0 7px 0 #253b5833,0 30px 100px #172d4960;border-radius:22px}
+.connect-dialog::backdrop,.library-backdrop{background:#253b5870;backdrop-filter:blur(8px)}
+.connect-dialog h2,.landing .connect-dialog h2{font:600 32px/1.15 var(--ta-display);color:var(--ta-ink);letter-spacing:-.6px}
+.connect-dialog .muted{font-size:12px}
+.dialog-icon{background:none;margin-bottom:18px;width:54px;height:54px}.dialog-icon img{width:100%;height:100%}
+.eyebrow,.muted,.privacy-note,.setup-step p,.recovery p,.icon-button{color:var(--ta-muted)}
+.privacy-note{border-color:var(--ta-line)}
+.connect-dialog input{background:#fffdf8;border-color:#bcccd3;color:var(--ta-ink)}
+.connect-dialog input::placeholder,.search input::placeholder{color:var(--ta-muted)}
+.segmented{background:#e8eeef;border-color:var(--ta-line)}.segmented button{color:var(--ta-muted)}
+.segmented .active{background:var(--ta-ink);color:var(--ta-paper);box-shadow:0 2px 0 #16283d}
+.secondary{background:var(--ta-blue);border-color:#c4d5e0;color:var(--ta-ink)}.secondary:hover{background:#c8e2df;color:var(--ta-ink)}
+.setup-step>b{background:var(--ta-mint);color:var(--ta-ink)}.recovery{background:#ffe1bf}
+.form-error{background:#ffe1d9;color:#8e3028}.empty-office p{color:var(--ta-muted)}
+.world-loading,.canvas-fallback{background:var(--ta-cream);color:var(--ta-ink);font-family:var(--ta-display);font-size:20px}
+.prop-library{background:var(--ta-paper);color:var(--ta-ink);border-color:#fffdf7;box-shadow:0 10px 0 #253b5828,0 30px 90px #253b5833}
+.library-title h2,.catalog-heading h3,.prop-detail-copy h3{color:var(--ta-ink);font-weight:600;letter-spacing:-.3px}
+.library-title>span,.library-close{background:var(--ta-blue);color:var(--ta-ink)}
+.library-title small,.library-caption,.library-summary,.library-summary b,.vertical-list>button,.vertical-list>button small,.catalog-heading p,.pack-download,.catalog-search,.catalog-search input,.catalog-search input::placeholder,.catalog-search>span,.prop-card small,.prop-detail-copy>p,.prop-detail-copy>a,.room-design-controls>label,.room-design-controls>small,.placement-notice,.catalog-limit{color:var(--ta-muted)}
+.vertical-list,.prop-detail{background:#edf2ee;border-color:var(--ta-line)}
+.library-summary,.room-design-controls,.model-preview{border-color:var(--ta-line)}
+.vertical-list>button.active{background:var(--ta-mint);color:var(--ta-ink);box-shadow:inset 0 -2px #91beaa}
+.vertical-list>button:hover{background:var(--ta-blue)}
+.catalog-search{background:#f0f1e9;border-color:var(--ta-line)}
+.prop-card{background:#f5f0e5;border-color:#e3e1d8}.prop-card strong{color:var(--ta-ink)}
+.prop-card.active{background:#def0e7;border-color:#77ad99;box-shadow:0 3px 0 #90b5a340}
+.prop-card:hover{border-color:var(--ta-orange);box-shadow:0 3px 0 #dda47940}
+.model-preview{background:radial-gradient(ellipse,#def0e7,#edf2ee)}.model-preview>span{color:var(--ta-muted)}
+.room-design-controls select{background:var(--ta-paper);color:var(--ta-ink);border-color:#bdcbd2}
+.apply-theme{background:var(--ta-orange);color:var(--ta-ink);border-color:#f4ba94;box-shadow:0 3px 0 #d18b6533}
+.friend-card,.project-team{background:#edf2ee;border-color:var(--ta-line)}
+.friend-avatar{background:var(--ta-mint);color:var(--ta-ink)}
+.panel-intro,.friends label,.friend-details p,.friend-details small,.friends-empty small,.neighborhood-switch p,.social-footnote,.share-office p,.project-summary,.project-summary label,.project-summary>small,.project-fingerprint small,.project-summary details>small,.session-code{color:var(--ta-muted)}
+.friend-details h3,.friend-controls button,.neighborhood-switch label,.project-team-heading strong,.session-team header strong,.project-summary summary,.project-fingerprint{color:var(--ta-ink)}
+.friends input:not([type=checkbox]),.project-summary textarea,.clock-settings input{background:var(--ta-paper);color:var(--ta-ink);border-color:#bacbd4}
+.friends input[type=checkbox]{accent-color:var(--ta-mint-dark)}
+.friends-empty,.share-office,.project-summary details{background:#edf2ee;border-color:#cbdcd3;color:var(--ta-ink)}
+.share-office summary{color:var(--ta-ink)}.share-office .secondary,.project-summary .secondary,.friend-visit-actions button{background:var(--ta-blue);border-color:#c4d5e0;color:var(--ta-ink)}
+.hangout-grid button{background:#ffe1bf;border-color:#efc6a5;color:#774928;box-shadow:0 3px 0 #d6ae8e44}
+.social-notice{background:#dceee3;color:var(--ta-mint-dark)}
+.harness-chips span{background:var(--ta-mint);color:var(--ta-mint-dark)}.harness-chips .claude{background:#ffe1bf;color:var(--ta-orange-dark)}
+@media(max-width:1150px){.world-brand strong{font-size:23px}}
+@media(max-width:760px){.world-brand{padding:7px 10px}.world-brand strong{font-size:19px}.world-brand small{font-size:5px}.world-brand img{border-radius:9px}.connect-dialog h2{font-size:28px}}

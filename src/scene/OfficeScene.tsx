@@ -149,7 +149,7 @@ function CommonOffice({plan,paused,onAction,pulses}:{plan:OfficePlan;paused:bool
     </group>
     <group position={[r.x,0,r.z]}>
       <Box size={[5,1.25,1.7]} color="#86a79b" position={[-2.3,.77,1.2]}/><Box size={[5.18,.16,1.9]} color="#ebcfad" position={[-2.3,1.47,1.2]}/>
-      <Sign text="SIDEQUEST" color="#86a79b" width={3.7} height={.48} position={[-2.3,.95,2.061]}/>
+      <Sign text="tinyAGENTS" color="#253b58" ink="#fff9ed" width={3.7} height={.48} position={[-2.3,.95,2.061]}/>
       <VoxelModel family="monitor" color="#7b9caa" scale={.46} position={[-3.1,1.57,1.2]}/><VoxelModel family="flowers" color="#e7b881" position={[-.7,1.57,1.2]} scale={.45}/>
       <Box size={[6,.03,1.5]} color="#638c82" position={[1,.17,3.45]}/><Sign text="GOOD THINGS HAPPEN HERE" color="#638c82" width={5} height={.5} position={[1,.19,3.45]} rotation={[-Math.PI/2,0,0]}/>
     </group>
@@ -175,7 +175,7 @@ function CommonOffice({plan,paused,onAction,pulses}:{plan:OfficePlan;paused:bool
       <Sign text="SPACE TO THINK" color="#c5d1c8" ink="#78998b" width={4.4} height={.5} position={[0,.16,4.7]} rotation={[-Math.PI/2,0,0]}/>
     </group>
 
-    <Sign text="SIDEQUEST  /  STUDIO FLOOR" color="#dce1d5" ink="#758f86" width={4} height={.55} position={[0,.16,hall.z-hall.d/2+1]} rotation={[-Math.PI/2,0,0]}/>
+    <Sign text="tinyAGENTS  /  STUDIO FLOOR" color="#e6eee8" ink="#253b58" width={4} height={.55} position={[0,.16,hall.z-hall.d/2+1]} rotation={[-Math.PI/2,0,0]}/>
   </>;
 }
 

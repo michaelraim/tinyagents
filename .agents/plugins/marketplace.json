@@ -1,7 +1,7 @@
 {
   "name": "tinyagents",
   "interface": {
-    "displayName": "Tinyagents"
+    "displayName": "tinyAGENTS"
   },
   "plugins": [
     {

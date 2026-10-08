@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect your agents · Tinyagents</title><link rel="stylesheet" href="/guide.css"><link rel="icon" href="/favicon.svg"></head>
-<body><main><a class="back" href="/office">← Open your office</a><h1>Give your agents an office.</h1><p>A few commands connect Codex and Claude Code. Anyone can create an office. Offices start private; you can open a public visitor link later.</p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect your agents · tinyAGENTS</title><link rel="stylesheet" href="/guide.css"><link rel="icon" href="/favicon.svg"></head>
+<body><main><a class="guide-brand" href="/"><img src="/favicon.svg" alt=""/><span class="brand-wordmark"><span class="brand-tiny">tiny</span><span class="brand-agents">AGENTS</span></span></a><a class="back" href="/office">← Open your office</a><h1>Give your agents an office.</h1><p>A few commands connect Codex and Claude Code. Anyone can create an office. Offices start private; you can open a public visitor link later.</p>
 <h2>1. Save your two files</h2><p>On the homepage, click <strong>Get your office → Create my office</strong>. Download the <strong>recovery file</strong> and <strong>connection file</strong>. Keep both private. The recovery file is your way back in; there is no email reset.</p>
 <h2>2. Pair your computer</h2><p>You need <a href="https://nodejs.org/en/download">Node.js 22.18 or newer</a> and <a href="https://git-scm.com/downloads">Git</a>. Open a terminal and run:</p>
 <pre><code>git clone https://github.com/michaelraim/tinyagents.git
 cd tinyagents</code></pre><p>If you already have the project, open a terminal in that folder instead.</p>
-<h3>Windows PowerShell</h3><pre><code>node bridge/setup.mjs "$env:USERPROFILE/Downloads/sidequest.config.json"
+<h3>Windows PowerShell</h3><pre><code>node bridge/setup.mjs "$env:USERPROFILE/Downloads/tinyagents.config.json"
 node bridge/office.mjs doctor</code></pre>
-<h3>macOS or Linux</h3><pre><code>node bridge/setup.mjs "$HOME/Downloads/sidequest.config.json"
+<h3>macOS or Linux</h3><pre><code>node bridge/setup.mjs "$HOME/Downloads/tinyagents.config.json"
 node bridge/office.mjs doctor</code></pre>
 <p>Change the file path if you saved it somewhere else. Look for <strong>Ingest credentials accepted</strong>. You do not need to run a local web server or install this project's npm dependencies just to connect.</p>
 <h2>3. Install in your coding client</h2><h3>Codex</h3><pre><code>codex plugin marketplace add michaelraim/tinyagents
-codex plugin add sidequest-office@tinyagents</code></pre><p>Restart Codex. Enable the plugin and review/trust its hooks in <code>/hooks</code>. If your Codex version has no plugin commands, update it or open this repository in the desktop app and look for <strong>Tinyagents</strong> in its plugin directory.</p>
+codex plugin add sidequest-office@tinyagents</code></pre><p>Restart Codex. Enable the plugin and review/trust its hooks in <code>/hooks</code>. If your Codex version has no plugin commands, update it or open this repository in the desktop app and look for <strong>tinyAGENTS</strong> in its plugin directory.</p>
 <h3>Claude Code</h3><pre><code>claude plugin marketplace add michaelraim/tinyagents
 claude plugin install sidequest-office@tinyagents --scope user</code></pre><p>Restart Claude Code and check <code>/hooks</code>. Install both if you use both; they share the same office connection.</p>
 <h2>Updating an installed observer</h2><p>Version 0.4 adds repository and client identity. Update each installed plugin, then restart the coding client and review its hooks again.</p><h3>Codex</h3><pre><code>codex plugin marketplace upgrade tinyagents

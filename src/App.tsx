@@ -1,3 +1,4 @@
+import BrandWordmark from './BrandWordmark';
 import { Component, lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Activity, ArrowUpRight, ChevronRight, Coffee, Cookie, Crosshair, Hand, Heart, Home, Leaf, Maximize2, Minus, Moon, Pause, Play, Plus, Plug, RotateCw, Search, Settings2, Sun, Users, X } from 'lucide-react';
 import { effectiveState, projectsOf, stateMeta, sessionsOf, summarizeAgents, teamMeta, sameSession, agentRole, type Agent, type Project } from '../shared/protocol';
@@ -86,7 +87,7 @@ export default function App() {
     <SceneBoundary><Suspense fallback={<div className="world-loading"><img src="/favicon.svg" alt=""/><span>Turning on the office lights…</span></div>}><OfficeScene projects={projects} selected={selectedKey} onSelect={selectAgent} reaction={reaction} now={now} paused={paused} reducedMotion={reducedMotion} focus={focus} action={cameraAction} evening={evening} daylight={daylight} events={office.events} speed={speed} follow={follow} designs={sceneDesigns} onWorldAction={worldAction} pulses={pulses} onFocus={focusRoom} hangout={hangout} onHangoutResult={text=>setWorldToast({text,at:Date.now()})} /></Suspense></SceneBoundary>
     <div className="game-vignette" />
     <header className="game-header">
-      <a href="/" className="world-brand"><img src="/favicon.svg" alt=""/><div><strong>SIDEQUEST</strong><small>{mode === 'visit' ? publicView?.profile.name || 'VISITING AN OFFICE' : neighbors.length ? 'YOUR NEIGHBORHOOD' : mode === 'demo' ? 'DEMO OFFICE' : 'YOUR LIVING OFFICE'}</small></div></a>
+      <a href="/" className="world-brand"><img src="/favicon.svg" alt=""/><div><strong><BrandWordmark/></strong><small>{mode === 'visit' ? publicView?.profile.name || 'VISITING AN OFFICE' : neighbors.length ? 'YOUR NEIGHBORHOOD' : mode === 'demo' ? 'DEMO OFFICE' : 'YOUR LIVING OFFICE'}</small></div></a>
       <div className="office-stats glass"><span><Users size={15}/><b>{office.agents.length}</b> in office</span><span><i className="live-dot"/><b>{working}</b> working</span>{needsYou.length > 0 && <button className="help-alert" onClick={() => { selectAgent(needsYou[0]); setFollow(needsYou[0].key); }}>✋ {needsYou.length} {needsYou.length === 1 ? 'needs you' : 'need you'}<ChevronRight size={13}/></button>}</div>
       <div className="world-connection"><span className={`mode-indicator ${mode}`}><i/>{mode === 'demo' ? 'DEMO WORLD' : connection.toUpperCase()}</span><button className="hud-button connect" onClick={() => setConnectOpen(true)}><Plug size={16}/><span>Connect agents</span></button></div>
     </header>

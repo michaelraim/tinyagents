@@ -1,7 +1,7 @@
 {
   "name": "sidequest-office",
-  "version": "0.5.0",
-  "description": "A living office for your coding agents. Metadata-only activity observer.",
+  "version": "0.5.1",
+  "description": "tinyAGENTS — a living office for your coding agents. Metadata-only activity observer.",
   "author": {
     "name": "Michael Raim"
   }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { readConfig, configPath, probe } from './transport.mjs';
 
 try {
-  if (!process.argv[2]) throw new Error('Usage: node scripts/setup.mjs /path/to/sidequest.config.json');
+  if (!process.argv[2]) throw new Error('Usage: node scripts/setup.mjs /path/to/tinyagents.config.json');
   const config = await readConfig(path.resolve(process.argv[2]));
   await probe(config);
   const destination = configPath();

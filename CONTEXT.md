@@ -1,4 +1,4 @@
-# Tinyagents office world
+# tinyAGENTS office world
 
 A playful view of observed coding activity, with private offices and optional public visits.
 

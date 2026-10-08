@@ -1,4 +1,4 @@
-# Sidequest for Claude Code
+# tinyAGENTS for Claude Code
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
@@ -7,7 +7,7 @@ Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 3. From this extracted plugin directory, pair your machine:
 
 ```sh
-node scripts/setup.mjs /absolute/path/to/sidequest.config.json
+node scripts/setup.mjs /absolute/path/to/tinyagents.config.json
 node scripts/office.mjs doctor
 ```
 

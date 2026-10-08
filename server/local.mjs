@@ -132,5 +132,5 @@ server.on('upgrade', async (req, socket, head) => {
   if (!allowed(req) || !authorized) { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
   sockets.handleUpgrade(req, socket, head, ws => { ws.officeId = id; ws.publicView = publicView; ws.send(JSON.stringify(publicView ? { type: 'snapshot', ...publicOffice(record.office, record.sharing) } : { type: 'snapshot', office: record.office })); ws.on('message', message => { if (String(message) === 'ping') ws.send('pong'); }); ws.on('error', () => {}); });
 });
-server.listen(port, '127.0.0.1', () => console.log(`Sidequest bridge ready at http://127.0.0.1:${port} (loopback only)`));
+server.listen(port, '127.0.0.1', () => console.log(`tinyAGENTS bridge ready at http://127.0.0.1:${port} (loopback only)`));
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { for (const ws of sockets.clients) ws.close(); server.close(() => process.exit(0)); });

@@ -4,20 +4,25 @@ import { WorldHtml as Html } from './WorldHtml';
 import { CanvasTexture, Group, Mesh, MeshStandardMaterial, SRGBColorSpace } from 'three';
 import { Box, Cylinder, Plant, Sofa, CoffeeSteam } from './Props';
 import { VoxelModel } from './VoxelModel';
+import { useSignFonts } from './useSignFonts';
 
 type Point = [number, number, number];
 export type WorldAction = 'coffee' | 'arcade' | 'fountain' | 'music';
 export type Decor = 'lush' | 'playful' | 'minimal';
 
 export const Sign = memo(function Sign({ text, color = '#43665c', ink = '#fff3d6', width = 3, height = .65, position = [0, 0, 0], rotation = [0, 0, 0] }: { text: string; color?: string; ink?: string; width?: number; height?: number; position?: Point; rotation?: Point }) {
+  const fontsReady=useSignFonts();
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas'); canvas.width = 768; canvas.height = 192;
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = color; ctx.fillRect(0, 0, 768, 192);
-    ctx.fillStyle = ink; ctx.font = '800 78px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, 384, 104, 704);
+    ctx.fillStyle = ink; ctx.font = '600 78px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if(text==='tinyAGENTS'){
+      ctx.textAlign='left';ctx.font='500 74px Fredoka, sans-serif';ctx.fillText('tiny',139,108);
+      ctx.font='bold 80px monospace';ctx.fillText('AGENTS',281,108);
+    }else ctx.fillText(text, 384, 104, 704);
     const tex = new CanvasTexture(canvas); tex.colorSpace = SRGBColorSpace; return tex;
-  }, [text, color, ink]);
+  }, [text, color, ink,fontsReady]);
   useEffect(() => () => texture.dispose(), [texture]);
   return <mesh position={position} rotation={rotation}><planeGeometry args={[width, height]}/><meshStandardMaterial map={texture} roughness={.8}/></mesh>;
 });

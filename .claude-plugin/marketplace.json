@@ -7,7 +7,7 @@
     {
       "name": "sidequest-office",
       "source": "./plugins/claude",
-      "description": "A living office for your coding agents."
+      "description": "tinyAGENTS — a living office for your coding agents."
     }
   ]
 }

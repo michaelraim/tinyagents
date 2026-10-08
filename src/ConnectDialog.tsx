@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Download, Plug, X } from 'lucide-react';
+import { ArrowRight, Download, X } from 'lucide-react';
 import { localTimeZone } from '../shared/clock';
 type Keys = { officeId: string; ingestKey: string; viewerKey: string; ownerKey: string };
 type Health = { publicSignup: boolean; storage: string; registration: boolean };
@@ -54,7 +54,7 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTa
     const content = JSON.stringify(recovery
       ? { url: location.origin, officeId: keys.officeId, viewerKey: keys.viewerKey, ownerKey: keys.ownerKey }
       : { endpoint: `${location.origin}/api/events`, officeId: keys.officeId, ingestKey: keys.ingestKey, projectName: '', projectId: '', theme: 'studio' }, null, 2);
-    const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' })); link.download = recovery ? 'sidequest.recovery.json' : 'sidequest.config.json'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' })); link.download = recovery ? 'tinyagents.recovery.json' : 'tinyagents.config.json'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     if (recovery) { setSavedRecovery(true); setError(''); }
   }
   async function importRecovery(file?: File) {
@@ -70,7 +70,7 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTa
   const needsInvite = health && !health.publicSignup && health.storage !== 'local';
   return <dialog ref={dialog} className="connect-dialog" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
     <button className="icon-button close-dialog" onClick={close} aria-label="Close connection setup"><X size={18} /></button>
-    <div className="dialog-icon"><Plug size={24} /></div>
+    <div className="dialog-icon"><img src="/favicon.svg" alt="tinyAGENTS" /></div>
     <p className="eyebrow">MAKE YOURSELF AT HOME</p><h2>Bring your agents in.</h2>
     {!keys ? <>
       {tab==='new'&&<p className="muted">☀️ Office time zone: {localTimeZone().replaceAll('_',' ')}. Day and night will follow this clock.</p>}

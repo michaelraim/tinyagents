@@ -14,3 +14,6 @@ sidequest.recovery.json
 *.tsbuildinfo
 plugins/*/office.config.json
 test-results/
+
+tinyagents.config.json
+tinyagents.recovery.json

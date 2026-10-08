@@ -8,7 +8,7 @@ function glb(model,prop){
   const arrays=[model.positions,model.normals,model.colors,model.indices],bin=Buffer.concat(arrays.map(a=>Buffer.from(a.buffer)));
   let offset=0;const views=arrays.map(a=>{const v={buffer:0,byteOffset:offset,byteLength:a.byteLength};offset+=a.byteLength;return v;});
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(let i=0;i<model.positions.length;i++){min[i%3]=Math.min(min[i%3],model.positions[i]);max[i%3]=Math.max(max[i%3],model.positions[i]);}
-  const json={asset:{version:'2.0',generator:'Sidequest voxel kit'},scene:0,scenes:[{nodes:[0]}],nodes:[{mesh:0,name:prop.name}],meshes:[{primitives:[{attributes:{POSITION:0,NORMAL:1,COLOR_0:2},indices:3,material:0}]}],materials:[{pbrMetallicRoughness:{metallicFactor:0,roughnessFactor:.83}}],buffers:[{byteLength:bin.length}],bufferViews:views,accessors:arrays.map((a,i)=>({bufferView:i,componentType:i===3?5125:5126,count:i===3?a.length:a.length/3,type:i===3?'SCALAR':'VEC3',...(i===0?{min,max}:{})})),extras:prop};
+  const json={asset:{version:'2.0',generator:'tinyAGENTS voxel kit'},scene:0,scenes:[{nodes:[0]}],nodes:[{mesh:0,name:prop.name}],meshes:[{primitives:[{attributes:{POSITION:0,NORMAL:1,COLOR_0:2},indices:3,material:0}]}],materials:[{pbrMetallicRoughness:{metallicFactor:0,roughnessFactor:.83}}],buffers:[{byteLength:bin.length}],bufferViews:views,accessors:arrays.map((a,i)=>({bufferView:i,componentType:i===3?5125:5126,count:i===3?a.length:a.length/3,type:i===3?'SCALAR':'VEC3',...(i===0?{min,max}:{})})),extras:prop};
   const raw=JSON.stringify(json),jsonBytes=Buffer.from(raw+' '.repeat((4-Buffer.byteLength(raw)%4)%4));
   const header=Buffer.alloc(20);header.writeUInt32LE(0x46546c67,0);header.writeUInt32LE(2,4);header.writeUInt32LE(28+jsonBytes.length+bin.length,8);header.writeUInt32LE(jsonBytes.length,12);header.writeUInt32LE(0x4e4f534a,16);
   const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(bin.length,0);binHeader.writeUInt32LE(0x004e4942,4);
@@ -25,6 +25,8 @@ await mkdir('public/models',{recursive:true});await mkdir('public/model-previews
 let count=0,triangles=0,bytes=0;const report=[],fullPack={};
 for(const vertical of verticals){const pack={};for(const prop of vertical.props){const model=buildVoxelModel(prop.family,prop.color,prop.variant);if(!model.indices.length||!Array.from(model.positions).every(Number.isFinite))throw new Error(`Invalid model ${prop.id}`);const file=glb(model,prop);triangles+=model.indices.length/3;bytes+=file.length;pack[`${prop.id}.glb`]=file;await Promise.all([writeFile(join('public/models',`${prop.id}.glb`),file),writeFile(join('public/model-previews',`${prop.id}.svg`),thumbnail(model))]);count++;}
   pack['catalog.json']=strToU8(JSON.stringify(vertical,null,2));for(const [name,data]of Object.entries(pack))fullPack[`${vertical.id}/${name}`]=data;await writeFile(join('public/packs',`${vertical.id}.zip`),zipSync(pack));report.push({id:vertical.id,name:vertical.name,models:vertical.props.length});}
+await writeFile('public/packs/tinyagents-voxel-kit.zip',zipSync(fullPack));
+// Preserve old download links while serving the newly branded contents.
 await writeFile('public/packs/sidequest-voxel-kit.zip',zipSync(fullPack));
 await writeFile('public/models/catalog.json',JSON.stringify({version:1,style:'original-voxel',verticals},null,2));
 console.log(JSON.stringify({verticals:verticals.length,models:count,families:new Set(verticals.flatMap(v=>v.props.map(p=>p.family))).size,triangles,megabytes:(bytes/1e6).toFixed(2),report},null,2));
