@@ -8,10 +8,14 @@ for (let attempt = 0; attempt < 8; attempt++) {
     assert.equal(healthResponse.status, 200);
     const health = await healthResponse.json();
     assert.ok(health.publicSignup || health.providers?.github || health.providers?.gitlab); assert.equal(health.registration, true);
+    if (new URL(base).hostname === 'tinyagents.michael-325.workers.dev') {
+      assert.deepEqual(health.providers, { github: true, gitlab: true }, 'Both production sign-in providers must survive deployment');
+      assert.equal(health.publicSignup, false, 'Production must not fall back to anonymous registration');
+    }
     const account = await fetch(base + '/api/account').then(r => r.json());
     assert.equal(account.user, null); assert.equal(account.officeId, null);
     if (expected) assert.equal(health.build, expected);
-    for (const path of ['/', '/setup.html', '/privacy.html', '/plugins/codex.zip', '/plugins/claude.zip']) {
+    for (const path of ['/', '/connect', '/setup.html', '/privacy.html', '/plugins/codex.zip', '/plugins/claude.zip']) {
       const response = await fetch(base + path, { signal: AbortSignal.timeout(10000) }); assert.equal(response.status, 200, path);
       if (path.endsWith('.zip')) assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0, 2).toString(), 'PK', path);
     }

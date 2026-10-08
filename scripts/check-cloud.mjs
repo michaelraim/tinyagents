@@ -12,7 +12,7 @@ await mkdir('.local', { recursive: true });
 const directory = await mkdtemp(resolve('.local/worker-check-'));
 const migration = spawnSync(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'd1', 'migrations', 'apply', 'AUTH_DB', '--local', '--persist-to', directory], { encoding: 'utf8', windowsHide: true, env: { ...process.env, CI: 'true', WRANGLER_SEND_METRICS: 'false' } });
 if (migration.status !== 0) throw Error('Could not initialize test account database: ' + migration.stdout + migration.stderr);
-const worker = spawn(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', directory, '--var', 'REGISTRATION_KEY:local-test-invite'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, CI: 'true', WRANGLER_SEND_METRICS: 'false' } });
+const worker = spawn(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', directory, '--var', 'REGISTRATION_KEY:local-test-invite', '--var', 'PUBLIC_SIGNUP:true'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, CI: 'true', WRANGLER_SEND_METRICS: 'false' } });
 let log = '';
 worker.stdout.on('data', chunk => { log = (log + chunk).slice(-10000); });
 worker.stderr.on('data', chunk => { log = (log + chunk).slice(-10000); });

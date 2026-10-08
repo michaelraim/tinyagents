@@ -4,7 +4,8 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": { "PUBLIC_SIGNUP": "true", "AUTH_BASE_URL": "https://tinyagents.michael-325.workers.dev" },
+  "keep_vars": true,
+  "vars": { "PUBLIC_SIGNUP": "false", "AUTH_BASE_URL": "https://tinyagents.michael-325.workers.dev" },
   "d1_databases": [{ "binding": "AUTH_DB", "database_name": "tinyagents-auth", "database_id": "606ec621-c6f1-4ea6-afb2-9a5f2f4e4361", "migrations_dir": "migrations" }],
   "ratelimits": [
     { "name": "SIGNUP_LIMITER", "namespace_id": "481527101", "simple": { "limit": 5, "period": 60 } },

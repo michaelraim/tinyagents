@@ -1,6 +1,6 @@
 # Turn on GitHub and GitLab sign-in
 
-The code, Cloudflare account database, signing secret and automatic deployment are set up. **The remaining step is to create two OAuth apps in your own accounts and copy their four values into Cloudflare.** You can activate GitHub first and add GitLab later.
+Both providers are configured on the live tinyAGENTS site. These steps are kept for credential replacement or a separate self-hosted deployment. They are not part of user onboarding.
 
 These apps are for everyone who uses tinyAGENTS. Each visitor signs in with their own account. Visitors do not create OAuth apps, provide tokens or download recovery files. Google is not used.
 
@@ -57,7 +57,7 @@ Refresh [tinyAGENTS](https://tinyagents.michael-325.workers.dev). A provider's b
 
 On another browser or computer, use the same provider account. If both providers use different emails, explicitly linking them while signed in still lets them share the office. Signing into a second provider independently does not automatically merge accounts.
 
-New users simply sign in, click **Create my office**, download a connection file, and follow the [connection guide](https://tinyagents.michael-325.workers.dev/setup.html). No recovery file is required for these accounts.
+New users install a plugin, sign in when its browser opens, and approve their computer. The office and local connection are created automatically. See the [connection guide](https://tinyagents.michael-325.workers.dev/setup.html).
 
 ## Check it worked
 
