@@ -12,6 +12,8 @@ GitHub and GitLab sign-in are configured on the live site. The new plugin connec
 2. Restart the coding app, enable/trust its hooks, and start a session. The plugin opens the browser.
 3. Sign in if needed and click **Connect this computer**. Your office is created automatically. Start coding.
 
+On Windows, run installation commands in **Windows Terminal or Command Prompt**, not in a Codex chat. The guide now uses `npx.cmd` to fetch the official CLI: the Codex desktop app alone does not put a `codex` command on your normal PATH. If `npx.cmd` is missing too, install Node.js 22.18+ and open a new terminal. Already installed? Skip the terminal commands, restart the app, and ask **“connect tinyAGENTS”** in a new chat.
+
 Install both plugins to use both clients. They share the connection automatically on the same OS account. On another computer, sign into the same account during its browser connection. If the browser does not open, ask the agent **“connect tinyAGENTS”**.
 
 Your existing computer connection is preserved. For an older office that has not been linked to social login, use **I already have an office** and its original owner recovery file once. New offices never need a recovery file.

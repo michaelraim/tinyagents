@@ -5,16 +5,18 @@ Requires Node.js 22.18+ on the coding client's PATH.
 
 ## Install
 
-```sh
-codex plugin marketplace add michaelraim/tinyagents
-codex plugin add sidequest-office@tinyagents
+Open Windows Terminal or Command Prompt. These commands download the official CLI automatically; the desktop app does not have to expose a global terminal command. On macOS/Linux/WSL, open Terminal and replace npx.cmd with npx. If npx is missing, install Node.js 22.18+, close the terminal and open a new one.
+
+```text
+npx.cmd --yes @openai/codex@0.161.0 plugin marketplace add michaelraim/tinyagents
+npx.cmd --yes @openai/codex@0.161.0 plugin add sidequest-office@tinyagents
 ```
 
-Restart Codex, enable the plugin and review/trust its hooks in /hooks. Use the plugin's setup action or start a new session.
+Wait for Added plugin. Restart Codex, enable the plugin and review its hook-trust prompt if shown. Start a new chat and ask "connect tinyAGENTS", or start a coding session to open the browser automatically.
 
 The plugin opens tinyAGENTS in your browser. Sign in with GitHub or GitLab if needed, check the computer name, and click **Connect this computer**. Your office is created automatically if you don't have one. The page confirms when the connection is saved. Start a task to bring your crew in.
 
-No connection download, repository clone, npm install, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection.
+No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, skip the install commands and restart the app.
 
 Install both plugins if you use both clients. They share one office automatically in the same OS account. An already connected computer stays connected; no browser opens again. Connect separately inside WSL, containers, SSH or on another machine, using the same GitHub/GitLab account. Node must be installed in that environment. On headless machines, use the link returned by the setup skill.
 

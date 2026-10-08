@@ -5,16 +5,18 @@ Requires Node.js 22.18+ on the coding client's PATH.
 
 ## Install
 
-```sh
-claude plugin marketplace add michaelraim/tinyagents
-claude plugin install sidequest-office@tinyagents --scope user
+Open Windows Terminal or Command Prompt. These commands download the official CLI automatically; the desktop app does not have to expose a global terminal command. On macOS/Linux/WSL, open Terminal and replace npx.cmd with npx. If npx is missing, install Node.js 22.18+, close the terminal and open a new one.
+
+```text
+npx.cmd --yes --package @anthropic-ai/claude-code claude plugin marketplace add michaelraim/tinyagents
+npx.cmd --yes --package @anthropic-ai/claude-code claude plugin install sidequest-office@tinyagents --scope user
 ```
 
 Restart Claude Code and enable the plugin's hooks. Start a new session.
 
 The plugin opens tinyAGENTS in your browser. Sign in with GitHub or GitLab if needed, check the computer name, and click **Connect this computer**. Your office is created automatically if you don't have one. The page confirms when the connection is saved. Start a task to bring your crew in.
 
-No connection download, repository clone, npm install, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection.
+No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, skip the install commands and restart the app.
 
 Install both plugins if you use both clients. They share one office automatically in the same OS account. An already connected computer stays connected; no browser opens again. Connect separately inside WSL, containers, SSH or on another machine, using the same GitHub/GitLab account. Node must be installed in that environment. On headless machines, use the link returned by the setup skill.
 

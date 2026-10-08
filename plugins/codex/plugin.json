@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "sidequest-office",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "tinyAGENTS — a living office for your coding agents. Install, connect in your browser, start coding.",
   "author": {
     "name": "Michael Raim"
