@@ -17,7 +17,7 @@ describe('automatic plugin connection', () => {
     const directory = await mkdtemp(resolve('.local/pairing-test-'));
     const configFile = resolve(directory, 'config.json'), stateFile = resolve(directory, 'pairing.json');
     const deviceSecret = randomBytes(32).toString('hex'), ingestKey = randomBytes(32).toString('hex'), officeId = randomUUID();
-    let activeKey = ingestKey;
+    let activeKey = ingestKey, activeOffice = officeId;
     let starts = 0, finishes = 0, approved = false, origin = '', workerPid: number | undefined;
     const events: {provider: string}[] = [];
     const server = createServer(async (request, response) => {
@@ -29,7 +29,7 @@ describe('automatic plugin connection', () => {
         response.writeHead(201).end(JSON.stringify({ deviceSecret, code: 'ABCDEF123456', expiresAt: Date.now() + 60_000 }));
       } else if (request.url === '/api/pairing/poll') {
         expect(body.deviceSecret).toBe(deviceSecret);
-        response.end(JSON.stringify(approved ? { status: 'approved', config: { endpoint: origin + '/api/events', officeId, ingestKey: activeKey } } : { status: 'pending' }));
+        response.end(JSON.stringify(approved ? { status: 'approved', config: { endpoint: origin + '/api/events', officeId: activeOffice, ingestKey: activeKey } } : { status: 'pending' }));
       } else if (request.url === '/api/pairing/finish') {
         expect(body.deviceSecret).toBe(deviceSecret); expect(JSON.parse(await readFile(configFile, 'utf8')).ingestKey).toBe(activeKey); finishes++; response.end('{}');
       } else if (request.url === '/api/connection' || request.url === '/api/events') {
@@ -83,13 +83,29 @@ describe('automatic plugin connection', () => {
       await until(async () => finishes === 2 || undefined);
       expect(JSON.parse(await readFile(configFile, 'utf8'))).toMatchObject({ ingestKey: activeKey, projectName: 'Keep my room', officeId });
       await until(async () => JSON.parse(await readFile(stateFile, 'utf8')).status === 'connected' || undefined);
+      // A valid connection to an older office can be switched explicitly. It
+      // stays intact until browser approval, and is backed up after the switch.
+      const previous = await readFile(configFile, 'utf8');
+      approved = false; activeOffice = randomUUID();
+      const switchOutput = await new Promise<string>((accept, reject) => {
+        const child = spawn(process.execPath, ['bridge/office.mjs', 'connect', '--switch-office'], { env, stdio: 'pipe', windowsHide: true });
+        let result = ''; child.stdout.on('data', value => { result += value; }); child.on('error', reject); child.on('exit', code => code === 0 ? accept(result) : reject(Error('Switch failed')));
+      });
+      expect(switchOutput).toContain('/connect?code=ABCDEF123456');
+      const switching = JSON.parse(await readFile(stateFile, 'utf8')); workerPid = switching.pid;
+      expect(await readFile(configFile, 'utf8')).toBe(previous);
+      expect(starts).toBe(3); approved = true;
+      await until(async () => finishes === 3 || undefined);
+      expect(JSON.parse(await readFile(configFile, 'utf8'))).toEqual({ endpoint: origin + '/api/events', officeId: activeOffice, ingestKey: activeKey });
+      expect(await readFile(switching.backupFile, 'utf8')).toBe(previous);
+      await until(async () => JSON.parse(await readFile(stateFile, 'utf8')).status === 'connected' || undefined);
       // Malformed saved configurations are preserved, never silently replaced.
       await writeFile(configFile, 'broken configuration');
-      await hook('codex'); expect(starts).toBe(2); expect(await readFile(configFile, 'utf8')).toBe('broken configuration');
+      await hook('codex'); expect(starts).toBe(3); expect(await readFile(configFile, 'utf8')).toBe('broken configuration');
     } finally {
       if (workerPid) try { process.kill(workerPid); } catch { /* Completed. */ }
       await new Promise<void>(r => server.close(() => r()));
       if (resolve(directory).startsWith(resolve('.local') + sep + 'pairing-test-')) await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
-  }, 22000);
+  }, 35000);
 });

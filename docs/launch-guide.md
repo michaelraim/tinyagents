@@ -12,7 +12,7 @@ GitHub and GitLab sign-in are configured on the live site. The new plugin connec
 2. Restart the coding app, enable/trust its hooks, and start a session. The plugin opens the browser.
 3. Sign in if needed and click **Connect this computer**. Your office is created automatically. Start coding.
 
-On Windows, run installation commands in **Windows Terminal or Command Prompt**, not in a Codex chat. The guide now uses `npx.cmd` to fetch the official CLI: the Codex desktop app alone does not put a `codex` command on your normal PATH. If `npx.cmd` is missing too, install Node.js 22.18+ and open a new terminal. Already installed? Skip the terminal commands, restart the app, and ask **“connect tinyAGENTS”** in a new chat.
+On Windows, run installation commands in **Windows Terminal or Command Prompt**, not in a Codex chat. The guide now uses `npx.cmd` to fetch the official CLI: the Codex desktop app alone does not put a `codex` command on your normal PATH. If `npx.cmd` is missing too, install Node.js 22.18+ and open a new terminal. Already on 0.6.2 or later? Restart the app and ask **“connect tinyAGENTS”** in a new chat.
 
 Install both plugins to use both clients. They share the connection automatically on the same OS account. On another computer, sign into the same account during its browser connection. If the browser does not open, ask the agent **“connect tinyAGENTS”**.
 
@@ -30,24 +30,24 @@ The product is now **tinyAGENTS**. Existing connections still work. The technica
 
 ## On your current Windows computer
 
-Your private office has been created. This computer is paired, and the tinyAGENTS observer is installed for both Codex and Claude Code. The connection check to Cloudflare passed.
+The previous connection check confirmed a valid key, but did not prove hooks were running. Two issues were found: Codex 0.161/0.162-alpha ignored the 0.6.0–0.6.1 package's hooks, and this computer was configured for a different office from the one opened by social sign-in. Version **0.6.2** fixes hook discovery and adds a safe office switch.
 
 What is left for you:
 
-1. Restart Codex and Claude Code.
-2. Check **/hooks** in each client. Enable **sidequest-office** and review/trust its hooks when asked.
-3. Start a new task in a project. Open **/office** to watch its agent appear. The homepage is now an introduction, not your workspace.
-4. Keep the old recovery file private. After you attach this office to your account, normal access and management use sign-in.
+1. Update each installed plugin to **0.6.2** using the setup guide, then restart the coding app.
+2. In Codex, open **Settings → Hooks**, select **sidequest-office**, and review/trust its hooks. In the CLI, use **/hooks**. Installation alone does not approve hooks; a popup is not guaranteed.
+3. Ask your coding agent **“Switch tinyAGENTS to my signed-in office.”** Check the account in the browser and click **Connect this computer**. The previous local connection is kept until approval, then backed up privately.
+4. Start a real task. **My account & agents → Agent connection status** shows the last received report and which coding client sent it.
 
 The pairing file is `%USERPROFILE%\.sidequest\config.json`. Both clients use it. Do not upload either file to GitHub or share it publicly.
 
-The observer packages were tested against the live server. Your first real task after restarting is still needed to confirm that each client is actually running its hooks. This existing chat does not gain new hooks halfway through a session.
+The website's **Live view** badge only describes its live feed. **Waiting for agents** means no activity has reached that office. A paired computer can still be waiting for its first hook report. The `doctor` command shows the configured office ID and the last server receipt for that connection. Review and start a task after updating to confirm actual reporting.
 
 ## Requirements and limits
 
 Node.js 22.18+ must be available where the coding app runs. WSL, containers, SSH and other computers connect separately, using the same account. This supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot execute these local hooks. The coding app's hook trust review is still required.
 
-No model API key, repository clone, npm install or local web server is needed to use the plugin. Existing installations need an update to **0.6.0** for browser setup; the guide has the update commands.
+No model API key, repository clone, npm install or local web server is needed to use the plugin. Existing installations need **0.6.2 or later**; the guide has the update commands.
 
 ## Your clock and the growing floor plan
 

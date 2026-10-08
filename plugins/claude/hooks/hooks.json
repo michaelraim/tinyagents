@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "node -e \"process.argv[2]='claude';import(require('node:url').pathToFileURL(require('node:path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','emit.mjs')).href)\"",
-            "async": true,
+            "async": false,
             "timeout": 3
           }
         ]

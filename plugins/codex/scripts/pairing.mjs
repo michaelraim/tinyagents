@@ -2,13 +2,14 @@ import { readFile, mkdir, writeFile, rename, unlink, link } from 'node:fs/promis
 import { hostname } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { configPath, stateHome, readConfig, validateConfig, probe } from './transport.mjs';
 
 const defaultOrigin = 'https://tinyagents.michael-325.workers.dev';
 const stateFile = () => path.join(stateHome(), 'pairing.json');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const fingerprint = config => createHash('sha256').update(JSON.stringify(config)).digest('hex');
 async function state() { try { return JSON.parse(await readFile(stateFile(), 'utf8')); } catch { return null; } }
 async function save(value) {
   const temporary = stateFile() + '.' + randomUUID() + '.tmp';
@@ -37,14 +38,15 @@ export function openBrowser(url) {
 }
 // All hooks and both harnesses share one exclusive launch marker. No network
 // requests or browser waits happen in the coding client's hook process.
-export async function startPairing({ manual = false, provider = 'both' } = {}) {
+export async function startPairing({ manual = false, provider = 'both', switchOffice = false } = {}) {
+  if (switchOffice && !manual) throw Error('Switching offices requires an explicit connect request.');
   let existing;
   try { existing = await readConfig(); }
   catch (error) { if (error.code !== 'ENOENT') throw Error('Your saved connection needs attention. Run doctor; it has not been replaced.'); }
   const savedOrigin = existing && new URL(existing.endpoint).origin;
   let revokedFile;
   if (existing) {
-    if (manual) {
+    if (manual && !switchOffice) {
       try { await probe(existing); }
       catch (error) {
         if (![401, 404].includes(error.status)) throw error;
@@ -55,7 +57,7 @@ export async function startPairing({ manual = false, provider = 'both' } = {}) {
         existing = null;
       }
     }
-    if (existing) return { status: 'connected', officeUrl: new URL('/office', existing.endpoint).href };
+    if (existing && !switchOffice) return { status: 'connected', officeId: existing.officeId, officeUrl: new URL('/office', existing.endpoint).href };
   }
   const base = process.env.TINYAGENTS_URL ? origin() : savedOrigin || origin();
   await mkdir(stateHome(), { recursive: true, mode: 0o700 });
@@ -85,7 +87,8 @@ export async function startPairing({ manual = false, provider = 'both' } = {}) {
   try {
     const current = await state();
     if (active(current)) return current;
-    const next = { status: 'starting', startedAt: Date.now(), expiresAt: Date.now() + 30_000, base, provider, revokedFile };
+    const next = { status: 'starting', startedAt: Date.now(), expiresAt: Date.now() + 30_000, base, provider, revokedFile,
+      ...(existing && switchOffice ? { expectedConfig: fingerprint(existing), backupFile: configPath() + '.previous-' + randomUUID() } : {}) };
     await save(next);
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--run'], { detached: true, stdio: 'ignore', windowsHide: true, env: process.env });
     child.on('error', () => {}); child.unref();
@@ -99,7 +102,11 @@ async function run() {
   await save(current);
   try {
     // Exit if another setup method already connected this computer.
-    try { await readConfig(); await save({ status: 'connected', startedAt: current.startedAt }); return; } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    try {
+      const existing = await readConfig();
+      if (current.expectedConfig) { if (fingerprint(existing) !== current.expectedConfig) throw Error('Saved connection changed.'); }
+      else { await save({ status: 'connected', startedAt: current.startedAt, officeId: existing.officeId, officeUrl: new URL('/office', existing.endpoint).href }); return; }
+    } catch (e) { if (e.code !== 'ENOENT' || current.expectedConfig) throw e; }
     const request = await api(current.base, 'start', { name: hostname().slice(0, 60) || 'My computer', provider: current.provider, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' });
     if (!/^[a-f0-9]{64}$/.test(request.deviceSecret) || !/^[A-F0-9]{12}$/.test(request.code) || !Number.isFinite(request.expiresAt)) throw Error('Invalid connection response.');
     const verificationUrl = current.base + '/connect?code=' + request.code;
@@ -117,6 +124,11 @@ async function run() {
         const previous = await readConfig(current.revokedFile);
         if (previous.officeId === config.officeId) config = { ...previous, ...config };
       }
+      if (current.expectedConfig) {
+        const previous = await readConfig();
+        if (fingerprint(previous) !== current.expectedConfig) throw Error('Saved connection changed.');
+        if (previous.officeId === config.officeId && previous.endpoint === config.endpoint) config = { ...previous, ...config };
+      }
       await probe(config);
       await mkdir(path.dirname(configPath()), { recursive: true, mode: 0o700 });
       const temporary = configPath() + '.' + randomUUID() + '.tmp';
@@ -124,7 +136,12 @@ async function run() {
         await writeFile(temporary, JSON.stringify(config, null, 2), { flag: 'wx', mode: 0o600 });
         // Hard-link an already complete private file. Never replace a connection
         // created by another setup process, even between the earlier checks.
-        await link(temporary, configPath());
+        if (current.expectedConfig) {
+          const previous = await readFile(configPath(), 'utf8');
+          if (fingerprint(validateConfig(JSON.parse(previous))) !== current.expectedConfig) throw Error('Saved connection changed.');
+          await writeFile(current.backupFile, previous, { flag: 'wx', mode: 0o600 });
+          await rename(temporary, configPath());
+        } else await link(temporary, configPath());
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
         const existing = await readConfig();
@@ -135,16 +152,16 @@ async function run() {
         try { await api(current.base, 'finish', { deviceSecret: current.deviceSecret }); break; }
         catch (error) { if ([400, 401, 403, 410].includes(error.status)) break; await sleep(5000); }
       }
-      await save({ status: 'connected', startedAt: current.startedAt, officeUrl: current.base + '/office' });
+      await save({ status: 'connected', startedAt: current.startedAt, officeId: config.officeId, officeUrl: current.base + '/office' });
       return;
     }
     await save({ status: 'expired', startedAt: current.startedAt });
   } catch { await save({ status: 'failed', startedAt: current.startedAt }); }
 }
-export async function connect() {
-  let current = await startPairing({ manual: true });
+export async function connect({ switchOffice = false } = {}) {
+  let current = await startPairing({ manual: true, switchOffice });
   for (let attempt = 0; current.status === 'starting' && attempt < 40; attempt++) { await sleep(250); current = await state() || current; }
-  if (current.status === 'connected') return `Already connected. Your office: ${current.officeUrl}`;
+  if (current.status === 'connected') return `Connection saved for office ${current.officeId}. Website: ${current.officeUrl}\nThis checks credentials, not hook execution. Run doctor for reporting status. If your signed-in website shows a different office ID, use connect --switch-office.`;
   if (current.status === 'pending') return `Finish connecting in your browser: ${current.verificationUrl}\nApprove only if the computer name matches. Both Codex and Claude Code will use this office automatically.`;
   return 'Connection could not start. Check your network, then ask to connect tinyAGENTS again.';
 }

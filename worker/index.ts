@@ -7,7 +7,8 @@ import { createAuth, providers, type AuthEnv } from './auth';
 import { accountHeader, sessionHeader, accountRoute, ownedOffice, newOfficeSecrets } from './accounts';
 import { pairingRoute, pairingCodePattern } from './pairing';
 interface Env extends AuthEnv { OFFICES: DurableObjectNamespace<Office>; ASSETS: Fetcher; REGISTRATION_KEY?: string; PUBLIC_SIGNUP?: string; BUILD_SHA?: string; SIGNUP_LIMITER: RateLimit; AUTH_LIMITER: RateLimit }
-type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings; connections?: { id: string; name: string; hash: string; createdAt: number }[] };
+type Reporting = { lastReceivedAt: number; providers: Partial<Record<'codex' | 'claude', number>> };
+type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings; reporting?: Reporting; connections?: { id: string; name: string; hash: string; createdAt: number; reporting?: Reporting }[] };
 const json = (data: unknown, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 async function readBytes(request: Request) {
   const reader = request.body?.getReader(); if (!reader) throw new Error('Missing body');
@@ -170,7 +171,11 @@ export class Office extends DurableObject<Env> {
   private owner(request: Request) { return request.headers.has(accountHeader) || matches((request.headers.get('Authorization') || '').replace(/^Bearer /, ''), this.record?.ownerHash ?? ''); }
   private async ingest(request: Request) {
     const key = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
-    return !!this.record && (await matches(key, this.record.ingestHash) || (await Promise.all((this.record.connections ?? []).map(c => matches(key, c.hash)))).some(Boolean));
+    if (!this.record) return undefined;
+    if (await matches(key, this.record.ingestHash)) return this.record;
+    const connections = this.record.connections ?? [];
+    const accepted = await Promise.all(connections.map(c => matches(key, c.hash)));
+    return connections.find((_, i) => accepted[i]);
   }
   private limited(kind: 'events' | 'logins', max: number) {
     if (Date.now() - this.rate.at > 60_000) this.rate = { at: Date.now(), events: 0, logins: 0 };
@@ -183,7 +188,7 @@ export class Office extends DurableObject<Env> {
     if (url.pathname === '/api/connections') {
       if (!await this.owner(request)) return json({ error: 'Owner sign-in required.' }, 401);
       const connections = this.record.connections ?? [];
-      if (request.method === 'GET') return json(connections.map(({ id, name, createdAt }) => ({ id, name, createdAt })));
+      if (request.method === 'GET') return json(connections.map(({ id, name, createdAt, reporting }) => ({ id, name, createdAt, reporting: reporting ?? null })));
       if (request.method === 'DELETE') {
         this.record.connections = connections.filter(c => c.id !== url.searchParams.get('id'));
         await this.ctx.storage.put('state', this.record); return json({ ok: true });
@@ -244,20 +249,27 @@ export class Office extends DurableObject<Env> {
       const ingestKey = token(), viewerKey = token(), ownerKey = token();
       this.record.ingestHash = await digest(ingestKey); this.record.viewerHash = await digest(viewerKey); this.record.ownerHash = await digest(ownerKey);
       this.record.connections = [];
+      this.record.reporting = undefined;
       await this.ctx.storage.put('state', this.record);
       for (const ws of this.ctx.getWebSockets()) ws.close(1000, 'Keys replaced');
       return json({ officeId, ingestKey, viewerKey, ownerKey }, 200, { 'Set-Cookie': viewerCookie(officeId, viewerKey, true) });
     }
     if (request.method === 'POST' && url.pathname === '/api/connection') {
-      if (!await this.ingest(request)) return json({ error: 'Invalid ingest credentials' }, 401);
-      return json({ ok: true, storage: 'cloudflare' });
+      const connection = await this.ingest(request);
+      if (!connection) return json({ error: 'Invalid ingest credentials' }, 401);
+      return json({ ok: true, storage: 'cloudflare', officeId: url.searchParams.get('office'), reporting: connection.reporting ?? null });
     }
     if (request.method === 'POST' && url.pathname === '/api/events') {
-      if (!await this.ingest(request)) return json({ error: 'Invalid ingest credentials' }, 401);
+      const connection = await this.ingest(request);
+      if (!connection) return json({ error: 'Invalid ingest credentials' }, 401);
       if (this.limited('events', 600)) return json({ error: 'Event rate limit reached' }, 429);
       let input; try { input = batchSchema.safeParse(await readBody(request)); } catch { return json({ error: 'Invalid body' }, 400); }
       if (!input.success || input.data.events.some(e => !validEventTime(e.at))) return json({ error: 'Invalid event batch' }, 400);
       for (const event of input.data.events) this.record.office = applyEvent(this.record.office, event);
+      const receivedAt = Date.now(), reporting = connection.reporting ?? { lastReceivedAt: receivedAt, providers: {} };
+      reporting.lastReceivedAt = receivedAt;
+      for (const event of input.data.events) reporting.providers[event.provider] = receivedAt;
+      connection.reporting = reporting;
       await this.ctx.storage.put('state', this.record);
       await this.broadcast();
       return json({ accepted: input.data.events.length, revision: this.record.office.revision });

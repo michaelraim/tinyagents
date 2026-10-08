@@ -82,6 +82,15 @@ try {
   await call(`/api/clock?office=${id}`, { method: 'POST', cookie: owner, body: { timeZone: 'Europe/London' } });
   const [pair, pair2] = await Promise.all(['Laptop', 'Desktop'].map(name => call(`/api/connections?office=${id}`, { method: 'POST', cookie: owner, body: { name }, status: 201 }).then(r => r.json())));
   for (const key of [pair.ingestKey, pair2.ingestKey]) await call(`/api/connection?office=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + key } });
+  const probe = key => call(`/api/connection?office=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + key } }).then(r => r.json());
+  assert.equal((await probe(pair.ingestKey)).reporting, null, 'a successful credential probe is not agent activity');
+  await call(`/api/events?office=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + pair.ingestKey }, body: { events: [{ version: 1, id: 'receipt-test', at: Date.now(), provider: 'codex', sessionId: 'receipt-session', agentId: 'main', name: 'Observer', project: { id: 'receipt-project', name: 'Receipt test' }, state: 'thinking', activity: 'Planning' }] } });
+  const receipt = await probe(pair.ingestKey);
+  assert.ok(receipt.reporting.lastReceivedAt > 0); assert.ok(receipt.reporting.providers.codex > 0);
+  assert.equal((await probe(pair2.ingestKey)).reporting, null, 'another computer must not borrow this receipt');
+  const reported = await (await call(`/api/connections?office=${id}`, { cookie: owner })).json();
+  assert.ok(reported.find(c => c.id === pair.id).reporting.lastReceivedAt > 0);
+  assert.equal(reported.find(c => c.id === pair.id).hash, undefined);
   await call(`/api/share?office=${id}`, { headers: { Authorization: 'Bearer ' + pair.ingestKey }, status: 401 });
   await call(`/api/connections?office=${id}&id=${pair.id}`, { method: 'DELETE', cookie: owner });
   await call(`/api/connection?office=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + pair.ingestKey }, status: 401 });

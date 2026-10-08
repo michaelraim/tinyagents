@@ -85,7 +85,7 @@ try {
   const file = resolve(directory, 'config.json');
   await writeFile(file, JSON.stringify(config), { mode: 0o600 });
   await run('bridge/setup.mjs', [file], '');
-  assert.match(await run('bridge/office.mjs', ['doctor'], ''), /credentials accepted/);
+  assert.match(await run('bridge/office.mjs', ['doctor'], ''), /credentials accepted/i);
   for (const provider of ['codex', 'claude']) {
     const update = message();
     const raw = { session_id: `acceptance-${provider}`, cwd: '/fixture/private-repo', hook_event_name: 'PreToolUse', tool_name: provider === 'codex' ? 'exec_command' : 'Bash', tool_input: { command: 'npm test -- NEVER_UPLOAD_THIS' }, tool_use_id: 'one', prompt: 'PRIVATE_PROMPT' };

@@ -21,6 +21,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      - name: Verify hook discovery in the supported Codex runtime
+        run: |
+          npm install --prefix .local/codex-host --no-save --ignore-scripts @openai/codex@0.161.0
+          node scripts/check-codex-hooks.mjs
       - run: npm audit
   deploy:
     needs: verify

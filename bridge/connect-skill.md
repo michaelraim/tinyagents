@@ -11,7 +11,11 @@ node <absolute-plugin-path>/scripts/office.mjs connect
 
 The helper opens the browser and returns a public connection link. Show that link if approval is pending. The human signs in with GitHub or GitLab and approves their computer there. The helper saves its credential automatically; Codex and Claude Code in the same OS account share it. Preserve existing connections.
 
-After the human completes approval, run the same helper with `doctor`. Only report connection success when credentials are accepted. If no agents appear, check that the plugin's hooks are enabled and trusted, then ask the human to start a new task. Host hook trust is reviewed in the coding client; never edit its trust settings to bypass that review.
+After browser approval, run `doctor`. Distinguish saved credentials from a confirmed activity receipt; a credential check alone does not prove hooks run. Compare its office ID with **My account & agents** on the website. Report the last receipt accurately, including when none exists.
+
+If the user asks to switch to their signed-in office, run `connect --switch-office`. It opens browser approval and preserves the existing connection until approval succeeds, then saves a private backup. Have the human check the account and approve the computer. An ordinary `connect` preserves an already valid connection.
+
+If no agents appear in Codex, inspect its hooks. Versions 0.6.0–0.6.1 used a package format whose hooks were silently ignored by Codex 0.161/0.162-alpha; update the plugin to 0.6.2 or later. Have the human open Codex **Settings → Hooks**, select **sidequest-office**, review its entries, then start a new task. The CLI equivalent is `/hooks`. A popup is not guaranteed. Host hook trust is reviewed in the coding client; never edit its trust settings to bypass that review.
 
 If Node is unavailable, explain that Node.js 22.18+ must be on the coding client's PATH. If the helper reports a broken saved configuration, use `doctor` and report its error; don't delete or overwrite the file. On SSH, WSL, containers or another computer, connect in that environment and use the returned browser link.
 

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
 import { zipSync, strToU8 } from 'fflate';
 
 const version = JSON.parse(await readFile('package.json', 'utf8')).version;
@@ -8,10 +8,16 @@ for (const provider of ['codex', 'claude']) {
   const events = [...common, ...(provider === 'claude' ? ['Notification', 'PostToolUseFailure'] : ['Interrupt'])];
   const root = provider === 'codex' ? 'PLUGIN_ROOT' : 'CLAUDE_PLUGIN_ROOT';
   const command = `node -e "process.argv[2]='${provider}';import(require('node:url').pathToFileURL(require('node:path').join(process.env.${root},'scripts','emit.mjs')).href)"`;
-  const hooks = Object.fromEntries(events.map(event => [event, [{ hooks: [{ type: 'command', command, ...(provider === 'codex' ? { commandWindows: command } : {}), async: true, timeout: 3 }] }]]));
+  const hooks = Object.fromEntries(events.map(event => [event, [{ hooks: [{ type: 'command', command, ...(provider === 'codex' ? { commandWindows: command } : {}), async: event !== 'SessionEnd', timeout: 3 }] }]]));
   files['hooks/hooks.json'] = JSON.stringify({ description: 'tinyAGENTS activity observer. Opens browser setup on first use; sends allowlisted metadata after connection. Never changes agent decisions.', hooks }, null, 2);
   const manifest = { name: 'sidequest-office', version, description: 'tinyAGENTS — a living office for your coding agents. Install, connect in your browser, start coding.', author: { name: 'Michael Raim' } };
-  if (provider === 'codex') files['plugin.json'] = JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', ...manifest, extensions: { 'com.openai': { hooks: './hooks/hooks.json', onboardingSkill: './skills/connect-tinyagents/SKILL.md' } } }, null, 2);
+  // Codex 0.161 / 0.162-alpha installs portable packages but skips their hooks.
+  // A root plugin.json also shadows the compatibility manifest, so ship only
+  // the hook-capable format until runtime discovery supports portable hooks.
+  if (provider === 'codex') {
+    await unlink('plugins/codex/plugin.json').catch(error => { if (error.code !== 'ENOENT') throw error; });
+    files['.codex-plugin/plugin.json'] = JSON.stringify({ ...manifest, hooks: './hooks/hooks.json', extensions: { 'com.openai': { onboardingSkill: './skills/connect-tinyagents/SKILL.md' } } }, null, 2);
+  }
   else files['.claude-plugin/plugin.json'] = JSON.stringify(manifest, null, 2);
   for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs', 'pairing.mjs']) files[`scripts/${file}`] = await readFile(`bridge/${file}`, 'utf8');
   files['skills/connect-tinyagents/SKILL.md'] = await readFile('bridge/connect-skill.md', 'utf8');
@@ -29,7 +35,7 @@ npx.cmd --yes @openai/codex@0.161.0 plugin marketplace add michaelraim/tinyagent
 npx.cmd --yes @openai/codex@0.161.0 plugin add sidequest-office@tinyagents
 \`\`\`
 
-Wait for Added plugin. Restart Codex, enable the plugin and review its hook-trust prompt if shown. Start a new chat and ask "connect tinyAGENTS", or start a coding session to open the browser automatically.` : `\`\`\`text
+Wait for Added plugin. Restart Codex and review the tinyAGENTS hooks. Open Settings → Hooks, select sidequest-office and review its hooks. In the CLI, type /hooks instead. Start a new chat and ask "connect tinyAGENTS", or start a coding session to open the browser automatically.` : `\`\`\`text
 npx.cmd --yes --package @anthropic-ai/claude-code claude plugin marketplace add michaelraim/tinyagents
 npx.cmd --yes --package @anthropic-ai/claude-code claude plugin install sidequest-office@tinyagents --scope user
 \`\`\`
@@ -38,7 +44,7 @@ Restart Claude Code and enable the plugin's hooks. Start a new session.`}
 
 The plugin opens tinyAGENTS in your browser. Sign in with GitHub or GitLab if needed, check the computer name, and click **Connect this computer**. Your office is created automatically if you don't have one. The page confirms when the connection is saved. Start a task to bring your crew in.
 
-No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, skip the install commands and restart the app.
+No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, update the marketplace and plugin to 0.6.2 or later, then restart the app. The setup guide has update commands.
 
 Install both plugins if you use both clients. They share one office automatically in the same OS account. An already connected computer stays connected; no browser opens again. Connect separately inside WSL, containers, SSH or on another machine, using the same GitHub/GitLab account. Node must be installed in that environment. On headless machines, use the link returned by the setup skill.
 
@@ -54,7 +60,7 @@ node scripts/office.mjs doctor
 node scripts/office.mjs flush
 \`\`\`
 
-Connect opens or resumes the browser handoff. Doctor checks credentials. Flush retries queued activity. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
+Connect opens or resumes the browser handoff. Doctor checks credentials, reports the office ID, and shows the last confirmed activity receipt. If the office ID differs from the signed-in website, use \`node scripts/office.mjs connect --switch-office\` and approve the computer in the browser. The old connection is kept until approval, then backed up privately. Flush retries queued activity. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
 
 ## Privacy and configuration
 
@@ -64,7 +70,7 @@ Both clients read ~/.sidequest/config.json. SIDEQUEST_CONFIG overrides the file;
 
 Optional config fields: projectId, projectName, vertical, projectDescription, theme, taskLabel, instanceId, and a projects map of forward-slash folder paths to those overrides. For a self-hosted office, set TINYAGENTS_URL to its HTTPS origin before connecting. Advanced JSON import remains available with scripts/setup.mjs.
 
-Manage connections under **My account & agents → Connected computers**. Remove a computer to revoke it. Disable/uninstall the plugin to stop new reports. Public visitor links are optional and never contain connection keys. Full guide: https://tinyagents.michael-325.workers.dev/setup.html
+Manage connections under **My account & agents → Manage paired computers**. Agent connection status shows the last actual activity receipt. Remove a computer to revoke it. Disable/uninstall the plugin to stop new reports. Public visitor links are optional and never contain connection keys. Full guide: https://tinyagents.michael-325.workers.dev/setup.html
 `;
   const zipFiles = {};
   for (const [filename, content] of Object.entries(files)) {

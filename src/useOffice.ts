@@ -58,7 +58,7 @@ export function useOffice() {
         socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/${mode === 'visit' ? 'public/' : ''}stream?office=${encodeURIComponent(id)}`);
         socket.onopen = () => {
           if (stopped) { socket?.close(); return; }
-          retries = 0; pongAt = Date.now(); setConnection('Connected');
+          retries = 0; pongAt = Date.now(); setConnection('Live view');
           socket?.send('ping');
           heartbeat = setInterval(() => {
             if (Date.now() - pongAt > 70_000) { socket?.close(); return; }

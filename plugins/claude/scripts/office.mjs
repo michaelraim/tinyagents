@@ -12,12 +12,14 @@ async function drain(config) {
   return delivered;
 }
 try {
-  if (command === 'connect') { console.log(await connect()); process.exit(0); }
+  if (command === 'connect') { console.log(await connect({ switchOffice: process.argv.includes('--switch-office') })); process.exit(0); }
   if (!['doctor', 'flush', 'watch'].includes(command)) throw new Error('Usage: node scripts/office.mjs connect|doctor|flush|watch');
   const config = await readConfig();
   if (command === 'doctor') {
     const result = await probe(config);
-    console.log(`Connected to ${new URL(config.endpoint).origin}. Ingest credentials accepted. Server: ${result.storage}.`);
+    console.log(`Credentials accepted by ${new URL(config.endpoint).origin}. Office ID: ${config.officeId}.`);
+    console.log(result.reporting?.lastReceivedAt ? `This connection last delivered activity at ${new Date(result.reporting.lastReceivedAt).toISOString()}. Providers: ${Object.keys(result.reporting.providers).join(', ')}. This is a receipt, not proof the client is still running.` : 'No confirmed activity receipt for this connection. Credentials alone do not prove hooks are running.');
+    console.log('In Codex, open Settings → Hooks and review sidequest-office (or /hooks in the CLI), then start a task. Compare this office ID with My account & agents on the website; use connect --switch-office if they differ.');
     console.log(`${(await queuedFiles(config)).length} queued events. Run flush to retry, or watch to keep retrying while this terminal stays open.`);
   } else if (command === 'flush') {
     console.log(`Delivered ${await drain(config)} events; ${(await queuedFiles(config)).length} still queued.`);

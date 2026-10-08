@@ -21,7 +21,7 @@
             "type": "command",
             "command": "node -e \"process.argv[2]='codex';import(require('node:url').pathToFileURL(require('node:path').join(process.env.PLUGIN_ROOT,'scripts','emit.mjs')).href)\"",
             "commandWindows": "node -e \"process.argv[2]='codex';import(require('node:url').pathToFileURL(require('node:path').join(process.env.PLUGIN_ROOT,'scripts','emit.mjs')).href)\"",
-            "async": true,
+            "async": false,
             "timeout": 3
           }
         ]

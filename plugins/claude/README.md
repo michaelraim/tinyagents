@@ -16,7 +16,7 @@ Restart Claude Code and enable the plugin's hooks. Start a new session.
 
 The plugin opens tinyAGENTS in your browser. Sign in with GitHub or GitLab if needed, check the computer name, and click **Connect this computer**. Your office is created automatically if you don't have one. The page confirms when the connection is saved. Start a task to bring your crew in.
 
-No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, skip the install commands and restart the app.
+No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, update the marketplace and plugin to 0.6.2 or later, then restart the app. The setup guide has update commands.
 
 Install both plugins if you use both clients. They share one office automatically in the same OS account. An already connected computer stays connected; no browser opens again. Connect separately inside WSL, containers, SSH or on another machine, using the same GitHub/GitLab account. Node must be installed in that environment. On headless machines, use the link returned by the setup skill.
 
@@ -32,7 +32,7 @@ node scripts/office.mjs doctor
 node scripts/office.mjs flush
 ```
 
-Connect opens or resumes the browser handoff. Doctor checks credentials. Flush retries queued activity. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
+Connect opens or resumes the browser handoff. Doctor checks credentials, reports the office ID, and shows the last confirmed activity receipt. If the office ID differs from the signed-in website, use `node scripts/office.mjs connect --switch-office` and approve the computer in the browser. The old connection is kept until approval, then backed up privately. Flush retries queued activity. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
 
 ## Privacy and configuration
 
@@ -42,4 +42,4 @@ Both clients read ~/.sidequest/config.json. SIDEQUEST_CONFIG overrides the file;
 
 Optional config fields: projectId, projectName, vertical, projectDescription, theme, taskLabel, instanceId, and a projects map of forward-slash folder paths to those overrides. For a self-hosted office, set TINYAGENTS_URL to its HTTPS origin before connecting. Advanced JSON import remains available with scripts/setup.mjs.
 
-Manage connections under **My account & agents → Connected computers**. Remove a computer to revoke it. Disable/uninstall the plugin to stop new reports. Public visitor links are optional and never contain connection keys. Full guide: https://tinyagents.michael-325.workers.dev/setup.html
+Manage connections under **My account & agents → Manage paired computers**. Agent connection status shows the last actual activity receipt. Remove a computer to revoke it. Disable/uninstall the plugin to stop new reports. Public visitor links are optional and never contain connection keys. Full guide: https://tinyagents.michael-325.workers.dev/setup.html

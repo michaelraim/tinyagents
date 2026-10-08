@@ -1,14 +1,13 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "sidequest-office",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "tinyAGENTS — a living office for your coding agents. Install, connect in your browser, start coding.",
   "author": {
     "name": "Michael Raim"
   },
+  "hooks": "./hooks/hooks.json",
   "extensions": {
     "com.openai": {
-      "hooks": "./hooks/hooks.json",
       "onboardingSkill": "./skills/connect-tinyagents/SKILL.md"
     }
   }

@@ -6,6 +6,14 @@ import { unzipSync } from 'fflate';
 import { validateConfig } from '../bridge/transport.mjs';
 
 describe('installable observers', () => {
+  it('uses the Codex hook-capable manifest without a portable manifest shadowing it', async () => {
+    const archive = unzipSync(await readFile('public/plugins/codex.zip'));
+    expect(archive['plugin.json']).toBeUndefined();
+    const manifest = JSON.parse(await readFile('plugins/codex/.codex-plugin/plugin.json', 'utf8'));
+    expect(manifest.hooks).toBe('./hooks/hooks.json');
+    expect(manifest.name).toBe('sidequest-office');
+    expect(archive['.codex-plugin/plugin.json']).toBeDefined();
+  });
   it('ships complete, synchronized packages and resolvable marketplace entries', async () => {
     for (const provider of ['codex', 'claude']) {
       const archive = unzipSync(await readFile(`public/plugins/${provider}.zip`));

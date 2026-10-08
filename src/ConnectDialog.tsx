@@ -6,7 +6,7 @@ import BrandWordmark from './BrandWordmark';
 import InstallPlugins from './InstallPlugins';
 import { localTimeZone } from '../shared/clock';
 type Props = { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void; initialTab?: 'new' | 'existing' };
-type Connection = { id: string; name: string; createdAt: number };
+type Connection = { id: string; name: string; createdAt: number; reporting?: {lastReceivedAt: number; providers: Partial<Record<'codex'|'claude', number>>} | null };
 export default function ConnectDialog(props: Props) {
   const account = useAccount(), dialog = useRef<HTMLDialogElement>(null);
   const [legacy, setLegacy] = useState(false), [busy, setBusy] = useState(false);
@@ -24,8 +24,9 @@ export default function ConnectDialog(props: Props) {
     if (!account.user) return;
     const controller = new AbortController();
     void fetch('/api/auth/list-accounts', { signal: controller.signal }).then(r => { if (!r.ok) throw Error(); return r.json(); }).then(rows => setLinked(rows.map((row: {providerId: string}) => row.providerId))).catch(() => {});
-    if (account.officeId) void fetch(`/api/connections?office=${account.officeId}`, { signal: controller.signal }).then(r => { if (!r.ok) throw Error(); return r.json(); }).then(setConnections).catch(() => {});
-    return () => controller.abort();
+    const refreshConnections = () => { if (account.officeId) void fetch(`/api/connections?office=${account.officeId}`, { signal: controller.signal }).then(r => { if (!r.ok) throw Error(); return r.json(); }).then(setConnections).catch(() => {}); };
+    refreshConnections(); const timer = setInterval(refreshConnections, 10000);
+    return () => { clearInterval(timer); controller.abort(); };
   }, [account.user, account.officeId]);
   async function run(action: () => Promise<void>) { setBusy(true); setError(''); try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); } finally { setBusy(false); } }
   async function signIn(provider: 'github' | 'gitlab', link = false) {
@@ -73,12 +74,17 @@ export default function ConnectDialog(props: Props) {
       {!account.providers.github && !account.providers.gitlab && <p className="account-notice">{account.local ? 'This local observer bridge uses development keys. Social login runs on the Cloudflare Worker.' : 'Social sign-in is being connected. You can explore the demo or open an existing office below.'}</p>}
       <button className="text-button" onClick={() => setLegacy(true)}>{account.local ? 'Local bridge setup / existing recovery file' : 'Already have an office recovery file?'}</button>
     </> : <>
-      <p className="eyebrow">WELCOME BACK, {account.user.name}</p><h2>{account.officeId ? 'The whole crew, connected.' : 'Let’s find your office.'}</h2>
+      <p className="eyebrow">WELCOME BACK, {account.user.name}</p><h2>{account.officeId ? 'Your office & coding apps' : 'Let’s find your office.'}</h2>
       {!account.officeId ? <><p className="muted">Install a plugin and approve this computer in the browser. We’ll create your office automatically.</p><InstallPlugins/><button className="primary full" disabled={busy} onClick={() => void create()}>Open an empty office <ArrowRight size={16}/></button><p className="account-fine">☀️ Your office clock: {localTimeZone().replaceAll('_', ' ')}</p><details className="account-details"><summary>I already have an office</summary><p>Load its owner recovery file once. Its people, history and connected coding clients stay exactly where they are. Future sign-ins use this account.</p><label>Original recovery file<input disabled={busy} type="file" accept="application/json,.json" onChange={e => void claim(e.target.files?.[0])}/></label></details></> : <>
-        <p className="muted">Install a plugin on each computer. Approve it in your browser. Codex and Claude Code share the same office automatically.</p><InstallPlugins/>
+        <p className="office-id">Office ID <code>{account.officeId}</code></p>
+        <details className="account-details" open><summary>Agent connection status</summary>
+          {connections.length ? connections.map(c => <div className="account-report" key={c.id}><strong>{c.name}</strong><span>{c.reporting ? `Last report: ${new Date(c.reporting.lastReceivedAt).toLocaleString()} · ${Object.keys(c.reporting.providers).map(p => p === 'codex' ? 'Codex' : 'Claude Code').join(' + ')}` : 'Paired · waiting for its first activity report'}</span></div>) : <p>No computers paired through this account yet. If you used an older connection file, compare its office ID above.</p>}
+          <p>Already installed but no agents? Ask your coding agent: <strong>“Diagnose my tinyAGENTS connection and compare the office ID.”</strong> If it points elsewhere, ask <strong>“Switch tinyAGENTS to my signed-in office.”</strong></p>
+        </details>
+        <details className="account-details" open={!connections.length}><summary>Install or update a coding app plugin</summary><p className="muted">Install on each computer, review its hooks and approve the browser connection.</p><InstallPlugins/></details>
         <details className="account-details"><summary>Advanced: manual connection file</summary><div className="account-pair"><label>Computer name<input maxLength={60} value={name} onChange={e => setName(e.target.value)}/></label><button className="secondary full" disabled={busy || !name.trim()} onClick={() => void pair()}><Download size={16}/> Download connection file</button>{download && <><p className="account-fine" role="status">Use scripts/setup.mjs in the plugin folder to import this file.</p><button className="text-button" onClick={() => saveConfig()}>Download that file again</button></>}</div></details>
         <button className="primary full" disabled={busy} onClick={() => { props.onConnect(account.officeId!); props.onClose(); }}>Step into my office <ArrowRight size={16}/></button>
-        {!!connections.length && <details className="account-details"><summary>Connected computers ({connections.length})</summary><p>Removing a computer stops its reports. Other computers stay connected.</p>{connections.map(c => <div className="account-connection" key={c.id}><span>{c.name}</span><button disabled={busy} onClick={() => void run(async () => { await accountRequest(`/api/connections?office=${account.officeId}&id=${c.id}`, undefined, 'DELETE'); setConnections(v => v.filter(row => row.id !== c.id)); })}>Remove</button></div>)}</details>}
+        {!!connections.length && <details className="account-details"><summary>Manage paired computers ({connections.length})</summary><p>Removing a computer stops its reports. Other computers stay connected.</p>{connections.map(c => <div className="account-connection" key={c.id}><span>{c.name}</span><button disabled={busy} onClick={() => void run(async () => { await accountRequest(`/api/connections?office=${account.officeId}&id=${c.id}`, undefined, 'DELETE'); setConnections(v => v.filter(row => row.id !== c.id)); })}>Remove</button></div>)}</details>}
       </>}
       <details className="account-details"><summary>Sign-in & account</summary><p>{account.user.email}</p>{(['github', 'gitlab'] as const).map(provider => <button className="secondary full" key={provider} disabled={busy || linked.includes(provider) || !account.providers[provider]} onClick={() => void signIn(provider, true)}>{linked.includes(provider) ? '✓ ' : '＋ '}{provider === 'github' ? 'GitHub' : 'GitLab'}{linked.includes(provider) ? ' connected' : ' — add another way to sign in'}</button>)}<p>Link the other provider here to use either login for the same office.</p><button className="secondary" disabled={busy} onClick={() => void signOut()}><LogOut size={15}/> Sign out</button><details className="delete-office"><summary>Delete my account and office</summary><p>This permanently removes your account, office, history and all connection keys. Your local coding projects stay on your computer.</p><label>Type DELETE<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off"/></label><button className="secondary full" disabled={busy || confirmation !== 'DELETE'} onClick={() => void signOut(true)}>Delete permanently</button></details></details>
     </>}
