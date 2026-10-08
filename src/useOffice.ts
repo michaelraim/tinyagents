@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
 import { createDemo, nextDemoEvent, growDemo } from './demo';
 import type { PublicOffice } from '../shared/public-office';
+import type { GameAction, GameState } from '../shared/game';
 import { useAccount } from './AccountContext';
 import { recordDiagnostic, recordSnapshot } from './diagnostics';
 const initialVisit = () => new URLSearchParams(location.search).get('visit') ?? '';
@@ -18,6 +19,8 @@ export function useOffice() {
   const [connection, setConnection] = useState(mode !== 'demo' ? 'Connecting…' : 'Demo office');
   const [sessionEpoch, setSessionEpoch] = useState(0);
   const [paused, setPaused] = useState(false);
+  // A connected office keeps its game economy in Cloudflare; it arrives with each snapshot.
+  const [serverGame, setServerGame] = useState<GameState>();
   const [now, setNow] = useState(Date.now);
   const tick = useRef(0);
   useEffect(() => {
@@ -78,7 +81,7 @@ export function useOffice() {
             const message = JSON.parse(e.data);
             if (message.type === 'session_ended') { stopped = true; clearInterval(heartbeat); setOffice(emptyOffice()); setPublicView(undefined); setConnection('Sign in · Connect agents'); socket?.close(); return; }
             if (message.type === 'sharing_changed' && mode === 'visit') { setOffice(emptyOffice()); setPublicView(undefined); socket?.close(); return; }
-            if (message.type === 'snapshot') { recordSnapshot(message.office);setOffice(message.office as OfficeState); if (mode === 'visit') setPublicView(message); }
+            if (message.type === 'snapshot') { recordSnapshot(message.office);setOffice(message.office as OfficeState); if (mode === 'visit') setPublicView(message); else if (message.game) setServerGame(message.game as GameState); }
           } catch { recordDiagnostic('feed.unreadable');setConnection('Unreadable update'); }
         };
         socket.onclose = () => { if (stopped) return; if (mode === 'visit') { setOffice(emptyOffice()); setPublicView(undefined); } retry(); };
@@ -98,5 +101,18 @@ export function useOffice() {
   useEffect(() => { const back = () => { const id = initialVisit(); setVisitId(id); const demo=location.pathname==='/demo';setMode(id ? 'visit' : demo ? 'demo':'live'); setOffice(!id && demo ? createDemo():emptyOffice()); setPublicView(undefined); }; window.addEventListener('popstate', back); return () => window.removeEventListener('popstate', back); }, [officeId]);
   const forgetOffice = useCallback(() => { setOfficeId(''); remember('sidequest.office', ''); enterDemo(); }, [enterDemo]);
   const addDemo=useCallback((kind:'project'|'session'|'agent')=>setOffice(current=>growDemo(current,kind)),[]);
-  return { office, mode, connection, paused, setPaused, now, enterLive, enterDemo, forgetOffice, officeId, visit, visitId, publicView, addDemo };
+  const liveId = mode === 'live' ? (account.user ? account.officeId : officeId) : '';
+  /** Spend coins on the server; resolves to the office's new game, or null if refused. */
+  const postGame = useCallback(async (action: GameAction): Promise<GameState | null> => {
+    if (!liveId) return null;
+    try {
+      const response = await fetch(`/api/game?office=${encodeURIComponent(liveId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action), signal: AbortSignal.timeout(8000) });
+      const body = await response.json() as GameState & { game?: GameState };
+      if (!response.ok) { if (body.game) setServerGame(body.game); return null; }
+      setServerGame(body);
+      return body;
+    } catch { return null; }
+  }, [liveId]);
+  useEffect(() => { if (mode !== 'live') setServerGame(undefined); }, [mode]);
+  return { office, mode, connection, paused, setPaused, now, enterLive, enterDemo, forgetOffice, officeId, visit, visitId, publicView, addDemo, serverGame: mode === 'live' ? serverGame : undefined, postGame };
 }

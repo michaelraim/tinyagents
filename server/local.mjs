@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { WebSocketServer } from 'ws';
 import { emptyOffice, applyEvent } from '../shared/protocol.ts';
+import { applyAction, economy, emptyGame, gameActionSchema, settleEvents } from '../shared/game.ts';
 import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security.ts';
 import { shareSchema, privateSharing, publicOffice } from '../shared/public-office.ts';
 
@@ -40,7 +41,8 @@ function limited(key, max = 120) {
   limits.set(key, entry); return ++entry.count > max;
 }
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 });
-function broadcast(id, office) { for (const socket of sockets.clients) if (socket.officeId === id && socket.readyState === 1) { if (socket.publicView && !offices[id].sharing?.enabled) continue; socket.send(JSON.stringify(socket.publicView ? { type: 'snapshot', ...publicOffice(office, offices[id].sharing) } : { type: 'snapshot', office })); } }
+function broadcast(id, office) { for (const socket of sockets.clients) if (socket.officeId === id && socket.readyState === 1) { if (socket.publicView && !offices[id].sharing?.enabled) continue; socket.send(JSON.stringify(socket.publicView ? { type: 'snapshot', ...publicOffice(office, offices[id].sharing) } : { type: 'snapshot', office, game: gameOf(offices[id]) })); } }
+function gameOf(record) { record.game ??= economy(emptyGame()); record.game.unlocked ??= []; return record.game; }
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${port}`);
   if (!allowed(req)) return json(res, 403, { error: 'Origin not allowed' });
@@ -110,7 +112,8 @@ const server = http.createServer(async (req, res) => {
       if (limited(id, 600)) return json(res, 429, { error: 'Event rate limit reached' });
       const input = batchSchema.safeParse(await body(req));
       if (!input.success || input.data.events.some(e => !validEventTime(e.at))) return json(res, 400, { error: 'Invalid event batch' });
-      for (const event of input.data.events) record.office = applyEvent(record.office, event);
+      const settled = settleEvents(gameOf(record), record.office, input.data.events, applyEvent);
+      record.office = settled.office; record.game = settled.game;
       await save(); broadcast(id, record.office);
       return json(res, 200, { accepted: input.data.events.length, revision: record.office.revision });
     }
@@ -118,6 +121,17 @@ const server = http.createServer(async (req, res) => {
       const { id, record } = officeFrom(req, url);
       if (!record || !await canView(viewerFromCookie(req.headers.cookie ?? '', id), record)) return json(res, 401, { error: 'Viewer authentication required' });
       return json(res, 200, record.office);
+    }
+    if (url.pathname === '/api/game') {
+      const { id, record } = officeFrom(req, url);
+      if (!record || !await canView(viewerFromCookie(req.headers.cookie ?? '', id), record)) return json(res, 401, { error: 'Viewer authentication required' });
+      if (req.method === 'GET') return json(res, 200, gameOf(record));
+      const parsed = gameActionSchema.safeParse(await body(req));
+      if (!parsed.success) return json(res, 400, { error: 'Unknown action' });
+      const next = applyAction(gameOf(record), parsed.data, Date.now(), record.office.timeZone);
+      if (!next) return json(res, 409, { error: 'Not enough coins', game: gameOf(record) });
+      record.game = next; await save(); broadcast(id, record.office);
+      return json(res, 200, next);
     }
     return json(res, 404, { error: 'Not found' });
   } catch (error) {
@@ -130,7 +144,7 @@ server.on('upgrade', async (req, socket, head) => {
   const publicView = url.pathname === '/api/public/stream';
   const authorized = record && (publicView ? record.sharing?.enabled : url.pathname === '/api/stream' && await canView(viewerFromCookie(req.headers.cookie ?? '', id), record));
   if (!allowed(req) || !authorized) { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
-  sockets.handleUpgrade(req, socket, head, ws => { ws.officeId = id; ws.publicView = publicView; ws.send(JSON.stringify(publicView ? { type: 'snapshot', ...publicOffice(record.office, record.sharing) } : { type: 'snapshot', office: record.office })); ws.on('message', message => { if (String(message) === 'ping') ws.send('pong'); }); ws.on('error', () => {}); });
+  sockets.handleUpgrade(req, socket, head, ws => { ws.officeId = id; ws.publicView = publicView; ws.send(JSON.stringify(publicView ? { type: 'snapshot', ...publicOffice(record.office, record.sharing) } : { type: 'snapshot', office: record.office, game: gameOf(record) })); ws.on('message', message => { if (String(message) === 'ping') ws.send('pong'); }); ws.on('error', () => {}); });
 });
 server.listen(port, '127.0.0.1', () => console.log(`tinyAGENTS bridge ready at http://127.0.0.1:${port} (loopback only)`));
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { for (const ws of sockets.clients) ws.close(); server.close(() => process.exit(0)); });

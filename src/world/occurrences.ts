@@ -57,7 +57,7 @@ const happenings: Record<string, { weight: number; when?: (c: Ctx) => boolean; r
         const fixer = [...world.bodies.values()].find(b => !b.npc && b.phase !== 'gone' && (b.mood === 'break' || b.phase === 'at-spot'));
         const finish = (name?: string) => {
           fx.coffeeBroken = false; world.closed.delete('coffee'); touchFx();
-          emit(event('coffee-fixed', '🔧', name ? `${name} fixed the coffee machine!` : 'Coffee machine is back!', 'Crisis averted. ☕', { tone: 'good', coins: 2 }));
+          emit(event('coffee-fixed', '🔧', name ? `${name} fixed the coffee machine!` : 'Coffee machine is back!', 'Crisis averted. ☕', { tone: 'good' }));
         };
         if (!cafe || !fixer) { finish(); return; }
         const s = cafe.side, back = cafe.z + s * cafe.d / 2;

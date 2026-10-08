@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { applyEvent, emptyOffice, eventSchema, pruneOffice, type OfficeState } from '../shared/protocol';
+import { applyAction, economy, emptyGame, gameActionSchema, settleEvents, type GameState } from '../shared/game';
 import { batchEnvelopeSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security';
 import { shareSchema, privateSharing, publicOffice, type ShareSettings } from '../shared/public-office';
 import { clockSettingsSchema, timeZoneSchema } from '../shared/clock';
@@ -8,7 +9,7 @@ import { accountHeader, sessionHeader, accountRoute, ownedOffice, newOfficeSecre
 import { pairingRoute, pairingCodePattern } from './pairing';
 interface Env extends AuthEnv { OFFICES: DurableObjectNamespace<Office>; ASSETS: Fetcher; REGISTRATION_KEY?: string; PUBLIC_SIGNUP?: string; BUILD_SHA?: string; SIGNUP_LIMITER: RateLimit; AUTH_LIMITER: RateLimit }
 type Reporting = { lastReceivedAt: number; providers: Partial<Record<'codex' | 'claude', number>> };
-type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings; reporting?: Reporting; connections?: { id: string; name: string; hash: string; createdAt: number; reporting?: Reporting }[] };
+type RecordData = { office: OfficeState; game?: GameState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings; reporting?: Reporting; connections?: { id: string; name: string; hash: string; createdAt: number; reporting?: Reporting }[] };
 const json = (data: unknown, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 async function readBytes(request: Request) {
   const reader = request.body?.getReader(); if (!reader) throw new Error('Missing body');
@@ -112,7 +113,7 @@ export default {
         if (!await stub.login(String(viewerKey ?? ''))) return json({ error: 'Invalid office credentials or too many attempts' }, 401);
         return json({ ok: true }, 200, { 'Set-Cookie': viewerCookie(officeId, viewerKey, true) });
       }
-      if (!['/api/connection', '/api/events', '/api/snapshot', '/api/stream', '/api/keys', '/api/office', '/api/share', '/api/public', '/api/public/stream', '/api/clock', '/api/connections'].includes(url.pathname)) return json({ error: 'Not found' }, 404);
+      if (!['/api/connection', '/api/events', '/api/snapshot', '/api/stream', '/api/keys', '/api/office', '/api/share', '/api/public', '/api/public/stream', '/api/clock', '/api/connections', '/api/game'].includes(url.pathname)) return json({ error: 'Not found' }, 404);
       const officeId = request.headers.get('X-Office-Id') || url.searchParams.get('office') || '';
       if (request.headers.has('X-Office-Id') && url.searchParams.has('office') && request.headers.get('X-Office-Id') !== url.searchParams.get('office')) return json({ error: 'Office IDs must match' }, 400);
       if (!officeIdPattern.test(officeId)) return json({ error: 'Invalid office ID' }, 400);
@@ -139,7 +140,7 @@ export default {
 
 export class Office extends DurableObject<Env> {
   private record: RecordData | undefined;
-  private rate = { at: 0, events: 0, logins: 0 };
+  private rate = { at: 0, events: 0, logins: 0, game: 0 };
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => { this.record = await ctx.storage.get<RecordData>('state'); });
@@ -177,8 +178,15 @@ export class Office extends DurableObject<Env> {
     const accepted = await Promise.all(connections.map(c => matches(key, c.hash)));
     return connections.find((_, i) => accepted[i]);
   }
-  private limited(kind: 'events' | 'logins', max: number) {
-    if (Date.now() - this.rate.at > 60_000) this.rate = { at: Date.now(), events: 0, logins: 0 };
+  /** The office's game economy (stars, coins, upgrades); created on first use. */
+  private game(): GameState {
+    if (!this.record) return emptyGame();
+    this.record.game ??= economy(emptyGame());
+    this.record.game.unlocked ??= [];
+    return this.record.game;
+  }
+  private limited(kind: 'events' | 'logins' | 'game', max: number) {
+    if (Date.now() - this.rate.at > 60_000) this.rate = { at: Date.now(), events: 0, logins: 0, game: 0 };
     return ++this.rate[kind] > max;
   }
   async login(key: string) { return !this.limited('logins', 30) && !!this.record && await canView(key, this.record); }
@@ -268,8 +276,10 @@ export class Office extends DurableObject<Env> {
       // Accept each valid event on its own. Invalid ones are acknowledged and dropped so a
       // single bad event can never wedge the observer's outbox.
       const events = input.data.events.flatMap(raw => { const parsed = eventSchema.safeParse(raw); return parsed.success && validEventTime(parsed.data.at) ? [parsed.data] : []; });
-      for (const event of events) this.record.office = applyEvent(this.record.office, event);
-      this.record.office = pruneOffice(this.record.office, Date.now());
+      // The office keeps score: stars and coins are paid out here, once, for every viewer.
+      const settled = settleEvents(this.game(), this.record.office, events, applyEvent);
+      this.record.office = pruneOffice(settled.office, Date.now());
+      this.record.game = settled.game;
       const receivedAt = Date.now(), reporting = connection.reporting ?? { lastReceivedAt: receivedAt, providers: {} };
       reporting.lastReceivedAt = receivedAt;
       for (const event of events) reporting.providers[event.provider] = receivedAt;
@@ -281,13 +291,26 @@ export class Office extends DurableObject<Env> {
     const officeId = url.searchParams.get('office') || '';
     if (!request.headers.has(accountHeader) && !await canView(viewerFromCookie(request.headers.get('Cookie') || '', officeId), this.record)) return json({ error: 'Viewer authentication required' }, 401);
     if (request.method === 'GET' && url.pathname === '/api/snapshot') return json(this.record.office);
+    if (url.pathname === '/api/game') {
+      if (request.method === 'GET') return json(this.game());
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      if (this.limited('game', 240)) return json({ error: 'Slow down a little' }, 429);
+      let parsed; try { parsed = gameActionSchema.safeParse(await readBody(request)); } catch { return json({ error: 'Invalid body' }, 400); }
+      if (!parsed.success) return json({ error: 'Unknown action' }, 400);
+      const next = applyAction(this.game(), parsed.data, Date.now(), this.record.office.timeZone);
+      if (!next) return json({ error: 'Not enough coins', game: this.game() }, 409);
+      this.record.game = next;
+      await this.ctx.storage.put('state', this.record);
+      await this.broadcast();
+      return json(next);
+    }
     if (request.method === 'GET' && url.pathname === '/api/stream' && request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
       if (this.ctx.getWebSockets('private').length >= 10) return json({ error: 'Too many office viewers' }, 429);
       const [client, server] = Object.values(new WebSocketPair());
       const sessionId = request.headers.get(sessionHeader);
       this.ctx.acceptWebSocket(server, ['private', ...(sessionId ? ['session:' + sessionId] : [])]);
       if (sessionId) server.serializeAttachment({ sessionId });
-      server.send(JSON.stringify({ type: 'snapshot', office: this.record.office }));
+      server.send(JSON.stringify({ type: 'snapshot', office: this.record.office, game: this.game() }));
       return new Response(null, { status: 101, webSocket: client });
     }
     return json({ error: 'Not found' }, 404);
@@ -301,7 +324,7 @@ export class Office extends DurableObject<Env> {
   }
   private async broadcast() {
     if (!this.record) return;
-      const message = JSON.stringify({ type: 'snapshot', office: this.record.office });
+      const message = JSON.stringify({ type: 'snapshot', office: this.record.office, game: this.game() });
       for (const ws of this.ctx.getWebSockets()) { try {
         if (this.ctx.getTags(ws).includes('public')) {
           if (this.record.sharing?.enabled) ws.send(JSON.stringify({ type: 'snapshot', ...publicOffice(this.record.office, this.record.sharing) }));

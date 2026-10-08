@@ -105,8 +105,12 @@ try {
   update = message();
   assert.equal((await (await post('/api/events', { events: [child] }, headers)).json()).revision, 5);
   await update;
-  assert.equal((await post('/api/events', { events: [{ ...child, id: 'invalid', prompt: 'secret' }] }, headers)).status, 400);
-  assert.equal((await post('/api/events', { events: [{ ...child, id: 'future', at: Date.now() + 120000 }] }, headers)).status, 400);
+  // Invalid events are acknowledged and dropped (never stored), so one bad event can't wedge an outbox.
+  for (const bad of [{ ...child, id: 'invalid', prompt: 'secret' }, { ...child, id: 'future', at: Date.now() + 120000 }]) {
+    const response = await post('/api/events', { events: [bad] }, headers);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).rejected, 1);
+  }
   assert.equal((await request(`/api/snapshot?office=${officeId}`)).status, 401);
 
   // An unavailable endpoint must queue metadata and return empty JSON without failing the host.
@@ -120,6 +124,14 @@ try {
   snapshot = await (await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: cookie } })).json();
   assert.equal(snapshot.agents.find(agent => agent.provider === 'claude').state, 'done');
   assert.equal(snapshot.revision, 6);
+  // The office keeps score on the server: the finished turn above paid out, and spending is checked.
+  const gameRoute = `/api/game?office=${officeId}`;
+  const game = await (await request(gameRoute, { headers: { Cookie: cookie } })).json();
+  assert.ok(game.stars >= 3 && game.today.shipped >= 1, 'A finished turn earns stars on the server');
+  const spend = body => request(gameRoute, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await spend({ action: 'buy', id: 'plants' })).status, 200);
+  assert.equal((await spend({ action: 'buy', id: 'plants' })).status, 409);
+  assert.equal((await request(gameRoute)).status, 401);
   // Sharing is owner-controlled and exposes an allowlisted, revocable visitor view.
   const publicRoute = `/api/public?office=${officeId}`, shareRoute = `/api/share?office=${officeId}`;
   const sharing = {enabled:true,name:'Acceptance office',bio:'Public fixture',projectNames:false,rooms:{}};

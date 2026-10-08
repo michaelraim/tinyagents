@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Agent, AgentState } from '../../shared/protocol';
-import { applyGameEvent, buy, detectEvents, interact, loadGame, moodOfAgent, saveGame, tickMoods, upgrades, type GameEvent, type GameState, type Interaction, type UpgradeId } from './game';
+import { applyGameEvent, applyMoodEvent, buy, detectEvents, interact, loadGame, moodOfAgent, saveGame, tickMoods, upgrades, type GameAction, type GameEvent, type GameState, type Interaction, type UpgradeId } from './game';
 import { floatText, shake } from './fx';
 import { Occurrences } from './occurrences';
 import { play, type Sfx } from './sfx';
@@ -18,8 +18,14 @@ const sound: Partial<Record<GameEvent['kind'], Sfx>> = {
  * matching choreography in the world, keeps score and moods, and stages random
  * office life. Returns what the HUD needs.
  */
-export function useGame(officeKey: string, agents: Agent[], world: World, daylight: number, now: number) {
+export type RemoteGame = { game?: GameState; post: (action: GameAction) => Promise<GameState | null> };
+
+export function useGame(officeKey: string, agents: Agent[], world: World, daylight: number, now: number, remote?: RemoteGame) {
   const [game, setGame] = useState<GameState>(() => loadGame(officeKey));
+  const remoteRef = useRef(remote);
+  remoteRef.current = remote;
+  // A connected office: the economy comes from Cloudflare; moods stay local and cosmetic.
+  useEffect(() => { if (remote?.game) setGame(g => ({ ...remote.game!, moods: g.moods })); }, [remote?.game]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [log, setLog] = useState<GameEvent[]>([]);
   const previous = useRef(new Map<string, { state: AgentState; at: number }>());
@@ -33,7 +39,8 @@ export function useGame(officeKey: string, agents: Agent[], world: World, daylig
   useEffect(() => { saveGame(officeKey, game); }, [game, officeKey]);
 
   const emit = useCallback((event: GameEvent) => {
-    setGame(g => applyGameEvent(g, event));
+    // In a connected office the server already paid out; only moods change here.
+    setGame(g => remoteRef.current ? applyMoodEvent(g, event) : applyGameEvent(g, event));
     setToasts(t => [{ ...event, shownAt: Date.now() }, ...t.filter(x => Date.now() - x.shownAt < 7000)].slice(0, 3));
     setLog(l => [event, ...l].slice(0, 60));
     const s = sound[event.kind];
@@ -83,6 +90,7 @@ export function useGame(officeKey: string, agents: Agent[], world: World, daylig
     if (!next) return false;
     gameRef.current = next;
     setGame(next);
+    void remoteRef.current?.post({ action: 'interact', key, kind });
     return true;
   }, []);
 
@@ -92,6 +100,7 @@ export function useGame(officeKey: string, agents: Agent[], world: World, daylig
     if (!next) return false;
     gameRef.current = next;
     setGame(next);
+    void remoteRef.current?.post({ action: 'buy', id });
     const item = upgrades.find(u => u.id === id)!;
     const event: GameEvent = { id: `buy-${id}-${Date.now()}`, kind: 'gift', at: Date.now(), icon: item.icon, title: `New in the office: ${item.name}!`, detail: item.detail, tone: 'good' };
     setToasts(t => [{ ...event, shownAt: Date.now() }, ...t].slice(0, 3));

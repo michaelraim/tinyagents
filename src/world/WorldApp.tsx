@@ -76,7 +76,8 @@ export default function WorldApp() {
   const camera = (c: Command) => setCommand({ ...c, id: nextId.current++ } as CameraCommand);
 
   const officeKey = office.mode === 'demo' ? 'demo' : office.mode === 'visit' ? `visit:${office.visitId}` : office.officeId || 'local';
-  const { game, toasts, log, act, purchase, trigger, dismiss } = useGame(officeKey, agents, world, daylight, now);
+  const remote = useMemo(() => office.mode === 'live' && office.officeId ? { game: office.serverGame, post: office.postGame } : undefined, [office.mode, office.officeId, office.serverGame, office.postGame]);
+  const { game, toasts, log, act, purchase, trigger, dismiss } = useGame(officeKey, agents, world, daylight, now, remote);
 
   // TV mode: the camera director cuts to whatever is happening, like a sim's spectator cam.
   const [tv, setTv] = useState(false);

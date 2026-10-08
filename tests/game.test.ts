@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyGameEvent, buy, dailyGoals, detectEvents, emptyGame, interact, rankFor, tickMoods } from '../src/world/game';
+import { applyAction, applyGameEvent, buy, dailyGoals, detectEvents, emptyGame, interact, rankFor, settleEvents, tickMoods } from '../src/world/game';
+import { applyEvent, emptyOffice, type OfficeEvent } from '../shared/protocol';
+import { normalizeHook } from '../bridge/normalize.mjs';
 import type { Agent, AgentState } from '../shared/protocol';
 
 const agent = (key: string, state: AgentState, extra: Partial<Agent> = {}) => ({
@@ -69,5 +71,20 @@ describe('economy and moods', () => {
   it('ranks by stars', () => {
     expect(rankFor(0).letter).toBe('D');
     expect(rankFor(40).letter).toBe('A');
+  });
+});
+
+describe('server settlement', () => {
+  const hook = (hook_event_name: string, at: number) => normalizeHook({ session_id: 's1', cwd: '/x/repo', hook_event_name }, 'claude', {}, at) as OfficeEvent;
+  it('pays for each transition inside one batch, and strips moods', () => {
+    const now = Date.now();
+    const { game, earned } = settleEvents(emptyGame(), emptyOffice(), [hook('UserPromptSubmit', now), hook('Stop', now + 1)], applyEvent, now);
+    expect(earned.map(e => e.kind)).toContain('shipped');
+    expect(game.stars).toBe(3);
+    expect(game.moods).toEqual({});
+  });
+  it('resets the daily tallies at the office midnight', () => {
+    const old = { ...emptyGame(), day: '2001-01-01', today: { shipped: 9, squashed: 0, testsGreen: 0, coffees: 0, snacks: 0 } };
+    expect(applyAction({ ...old, coins: 50 }, { action: 'buy', id: 'plants' })!.today.shipped).toBe(0);
   });
 });

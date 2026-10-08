@@ -26,7 +26,7 @@ A playful view of observed coding activity, with private offices and optional pu
 
 **Office life**: Random cosmetic happenings (pizza, birthdays, a broken coffee machine, a visiting cat). Always labelled as office life; never derived from or sent to real agents.
 
-**Game layer**: Stars, coins, moods, daily goals and shop upgrades. Earned only from observed events, stored in the viewer's browser, and never sent to an agent.
+**Game layer**: Stars, coins, moods, daily goals and shop upgrades. Earned only from observed events and settled by the office's Durable Object (moods stay in the browser). Never sent to an agent.
 
 **Office clock**: The owner's registered IANA time zone. It drives the office's local time and daily lighting, regardless of the visitor's location.
 

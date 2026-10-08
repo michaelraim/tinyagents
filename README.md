@@ -70,7 +70,7 @@ npm run bridge
 - **TV mode**: the camera cuts to whatever is happening.
 - **Sound**: optional synthesized effects (off by default).
 
-Game progress is stored in the viewer's browser. Nothing in the game layer is ever sent to an agent.
+For a connected office, the Durable Object keeps score: it pays out stars and coins once per real event as it ingests them, and checks every purchase. That keeps progress identical on every device and impossible to double-count. Moods are cosmetic and stay in the browser. The demo keeps a local economy. Nothing in the game layer is ever sent to an agent.
 
 **The mirror** (`bridge/`)
 
@@ -101,7 +101,7 @@ The tests cover:
 - **Privacy**: allowlisting, credential separation, cross-office access, and scrubbing of task titles and tool descriptions.
 - **Liveness rules**.
 - **Layout**: every desk and hangout spot reachable, rooms never overlapping, stable colours as the office grows.
-- **Game logic**: events, economy, moods and the shop.
+- **Game logic**: events, economy, moods, the shop, and server-side settlement (paid once per real event, purchases checked, per office).
 - **Integration**: real HTTP ingestion and WebSocket delivery.
 
 ## Deploy on Cloudflare
@@ -153,7 +153,6 @@ Edit `bridge/` and `scripts/build-plugins.mjs`, then run `npm run plugins:build`
 - The office shows observed events only. `Stop` means a turn ended, not that the work succeeded. A silent agent dozes after five minutes; that's uncertainty, not proof that it exited.
 - Claude Code fires no hook when you press Esc. The agent returns to idle when its next idle notification arrives.
 - An office keeps 160 agents and 80 activity entries.
-- Game progress lives in each viewer's browser.
 
 ## Credits
 

@@ -9,7 +9,7 @@ const base = 'http://127.0.0.1:8793';
 let server: ChildProcess, directory: string;
 let serverLog = '';
 let first: { officeId: string; ingestKey: string; viewerKey: string; ownerKey: string }, second: typeof first;
-let cookie = '';
+let cookie = '', secondCookie = '';
 async function create() {
   const r = await fetch(`${base}/api/offices`, { method: 'POST', body: '{}' });
   expect(r.status, serverLog).toBe(201); return { keys: await r.json(), cookie: r.headers.get('set-cookie')!.split(';')[0] };
@@ -25,11 +25,36 @@ beforeAll(async () => {
     try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* Wait for process readiness. */ }
     if (i === 79) throw new Error('Bridge did not start'); await new Promise(r => setTimeout(r, 100));
   }
-  const a = await create(), b = await create(); first = a.keys; second = b.keys; cookie = a.cookie;
+  const a = await create(), b = await create(); first = a.keys; second = b.keys; cookie = a.cookie; secondCookie = b.cookie;
 }, 15000);
 afterAll(async () => {
   if (server && server.exitCode === null) { const closed = once(server, 'exit'); server.kill(); await closed; }
   if (directory && resolve(directory).startsWith(`${resolve('.local')}${sep}integration-`)) await rm(directory, { recursive: true, force: true });
+});
+
+describe('office game economy', () => {
+  it('pays out on the server for real work and lets viewers spend, never twice', async () => {
+    const game = async () => (await fetch(`${base}/api/game?office=${second.officeId}`, { headers: { Cookie: secondCookie } })).json();
+    const start = await game();
+    const stamp = Date.now();
+    const working = normalizeHook({ session_id: 'game-session', cwd: '/fixtures/game', hook_event_name: 'UserPromptSubmit' }, 'claude', {}, stamp)!;
+    const shipped = normalizeHook({ session_id: 'game-session', cwd: '/fixtures/game', hook_event_name: 'Stop' }, 'claude', {}, stamp + 5)!;
+    const send = (events: unknown[]) => fetch(`${base}/api/events`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${second.ingestKey}`, 'X-Office-Id': second.officeId }, body: JSON.stringify({ events }) });
+    expect((await send([working])).status).toBe(200);
+    expect((await send([shipped])).status).toBe(200);
+    expect((await send([shipped])).status).toBe(200); // a retry is not paid twice
+    const after = await game();
+    expect(after.stars - start.stars).toBe(3);
+    expect(after.today.shipped).toBe(1);
+    const spend = (body: unknown) => fetch(`${base}/api/game?office=${second.officeId}`, { method: 'POST', headers: { Cookie: secondCookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const bought = await spend({ action: 'buy', id: 'plants' });
+    expect(bought.status).toBe(200);
+    expect((await bought.json()).unlocked).toContain('plants');
+    expect((await spend({ action: 'buy', id: 'plants' })).status).toBe(409);
+    expect((await spend({ action: 'buy', id: 'rooftop' })).status).toBe(409);
+    expect((await spend({ action: 'teleport' })).status).toBe(400);
+    expect((await fetch(`${base}/api/game?office=${second.officeId}`, { headers: { Cookie: cookie } })).status).toBe(401);
+  });
 });
 
 describe('live office boundary', () => {

@@ -12,7 +12,7 @@ Written 2026-10-08, after reviewing the Codex-built version (v0.6.x), the refere
 | People and furniture | Kenney CC0 characters with pose layers; Kenney furniture batched per room. |
 | Rooms | One room per project with spare desks, clutter and 50 topic themes, chosen per room. |
 | Mirror | Task titles, file names, command verbs (opt-out), honest liveness, per-event acceptance, 24-hour pruning. |
-| Game layer | Real-event choreography (helpers rush to a stuck teammate, reports handed to leads, new hires carrying boxes); moods and energy; coins, stars, score and rank; daily goals; a shop with seven upgrades; random office life; TV mode; sound; rank-up and counter juice. |
+| Game layer | Real-event choreography (helpers rush to a stuck teammate, reports handed to leads, new hires carrying boxes); moods and energy; coins, stars, score and rank; daily goals; a shop with seven upgrades; random office life; TV mode; sound; rank-up and counter juice. The office's Durable Object settles the economy. |
 | HUD | Resource bar, the "needs you" pill with portraits, the alert card, left navigation, panels, toasts. |
 | Homepage, dialogs and guides | Rebuilt or reskinned in the brand, with a new favicon and social card. |
 | Performance | Furniture batching, throttled shadow updates, and a Fast graphics mode chosen automatically on slow machines. |
@@ -20,7 +20,6 @@ Written 2026-10-08, after reviewing the Codex-built version (v0.6.x), the refere
 
 **Next ideas:**
 
-- Sync game progress to the office, so it follows you across devices.
 - Instanced characters, for offices with 100+ agents.
 - Shared neighbourhood events: two offices' agents meeting in the café.
 
