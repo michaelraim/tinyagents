@@ -3,6 +3,7 @@ import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
 import { createDemo, nextDemoEvent, growDemo } from './demo';
 import type { PublicOffice } from '../shared/public-office';
 import { useAccount } from './AccountContext';
+import { recordDiagnostic, recordSnapshot } from './diagnostics';
 const initialVisit = () => new URLSearchParams(location.search).get('visit') ?? '';
 function visitUrl(id = '', path = '/office') { const url = new URL(location.href); url.pathname=path; id ? url.searchParams.set('visit', id) : url.searchParams.delete('visit'); history.pushState({}, '', url); }
 function saved(key: string) { try { return localStorage.getItem(key) ?? ''; } catch { return ''; } }
@@ -41,10 +42,12 @@ export function useOffice() {
       if (stopped) return;
       clearInterval(heartbeat);
       setConnection('Connection lost · retrying');
+      recordDiagnostic('feed.retry');
       timer = setTimeout(() => void connect(), Math.min(30_000, 1000 * 2 ** Math.min(retries++, 5)));
     };
     const connect = async () => {
       setConnection(retries ? 'Reconnecting…' : 'Connecting…');
+      recordDiagnostic('feed.connecting');
       try {
         // An HTTP check distinguishes an expired login from a transient socket failure.
         const response = await fetch(`/api/${mode === 'visit' ? 'public' : 'snapshot'}?office=${encodeURIComponent(id)}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]) });
@@ -54,11 +57,13 @@ export function useOffice() {
         const snapshot = await response.json();
         if (stopped) return;
         setOffice(mode === 'visit' ? snapshot.office : snapshot);
+        recordSnapshot(mode === 'visit' ? snapshot.office : snapshot);
         if (mode === 'visit') setPublicView(snapshot);
         socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/${mode === 'visit' ? 'public/' : ''}stream?office=${encodeURIComponent(id)}`);
         socket.onopen = () => {
           if (stopped) { socket?.close(); return; }
           retries = 0; pongAt = Date.now(); setConnection('Live view');
+          recordDiagnostic('feed.open');
           socket?.send('ping');
           heartbeat = setInterval(() => {
             if (Date.now() - pongAt > 70_000) { socket?.close(); return; }
@@ -73,8 +78,8 @@ export function useOffice() {
             const message = JSON.parse(e.data);
             if (message.type === 'session_ended') { stopped = true; clearInterval(heartbeat); setOffice(emptyOffice()); setPublicView(undefined); setConnection('Sign in · Connect agents'); socket?.close(); return; }
             if (message.type === 'sharing_changed' && mode === 'visit') { setOffice(emptyOffice()); setPublicView(undefined); socket?.close(); return; }
-            if (message.type === 'snapshot') { setOffice(message.office as OfficeState); if (mode === 'visit') setPublicView(message); }
-          } catch { setConnection('Unreadable update'); }
+            if (message.type === 'snapshot') { recordSnapshot(message.office);setOffice(message.office as OfficeState); if (mode === 'visit') setPublicView(message); }
+          } catch { recordDiagnostic('feed.unreadable');setConnection('Unreadable update'); }
         };
         socket.onclose = () => { if (stopped) return; if (mode === 'visit') { setOffice(emptyOffice()); setPublicView(undefined); } retry(); };
         socket.onerror = () => socket?.close();

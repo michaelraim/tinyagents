@@ -2,6 +2,7 @@ import { readFile, mkdir, writeFile, readdir, unlink, rename } from 'node:fs/pro
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { diagnostic, errorCode } from './diagnostics.mjs';
 
 export const stateHome = () => process.env.SIDEQUEST_HOME || path.join(homedir(), '.sidequest');
 export const configPath = () => process.env.SIDEQUEST_CONFIG || path.join(stateHome(), 'config.json');
@@ -46,11 +47,18 @@ export async function flush(config, timeout = 1400) {
     } catch { /* Another emitter may have already flushed this file. */ }
   }
   if (!entries.length) return 0;
+  const started=Date.now();
+  try {
   const response = await fetch(config.endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.ingestKey}`, 'X-Office-Id': config.officeId },
     body: JSON.stringify({ events: entries.map(entry => entry.event) }), redirect: 'error', signal: AbortSignal.timeout(timeout),
   });
-  if (!response.ok) throw new Error(`Delivery failed (HTTP ${response.status}). Events remain queued; run doctor to check the connection.`);
+  if (!response.ok) {const error=new Error(`Delivery failed (HTTP ${response.status}). Events remain queued; run doctor to check the connection.`);error.status=response.status;throw error;}
   await Promise.all(entries.map(entry => unlink(path.join(outboxPath(config), entry.file)).catch(() => {})));
+  await diagnostic('delivery.sent',{count:entries.length,durationMs:Date.now()-started,queueAgeMs:Date.now()-Math.min(...entries.map(e=>e.event.at))});
   return entries.length;
+  } catch(error) {
+    await diagnostic('delivery.failed',{count:entries.length,durationMs:Date.now()-started,error:errorCode(error)});
+    throw error;
+  }
 }

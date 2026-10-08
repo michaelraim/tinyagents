@@ -17,7 +17,7 @@ describe('installable observers', () => {
   it('ships complete, synchronized packages and resolvable marketplace entries', async () => {
     for (const provider of ['codex', 'claude']) {
       const archive = unzipSync(await readFile(`public/plugins/${provider}.zip`));
-      for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs', 'pairing.mjs']) {
+      for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'diagnostics.mjs', 'delivery.mjs', 'office.mjs', 'pairing.mjs']) {
         const source = await readFile(`bridge/${file}`, 'utf8');
         expect(await readFile(`plugins/${provider}/scripts/${file}`, 'utf8')).toBe(source);
         expect(new TextDecoder().decode(archive[`scripts/${file}`])).toBe(source);

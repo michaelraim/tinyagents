@@ -12,7 +12,7 @@ GitHub and GitLab sign-in are configured on the live site. The new plugin connec
 2. Restart the coding app, enable/trust its hooks, and start a session. The plugin opens the browser.
 3. Sign in if needed and click **Connect this computer**. Your office is created automatically. Start coding.
 
-On Windows, run installation commands in **Windows Terminal or Command Prompt**, not in a Codex chat. The guide now uses `npx.cmd` to fetch the official CLI: the Codex desktop app alone does not put a `codex` command on your normal PATH. If `npx.cmd` is missing too, install Node.js 22.18+ and open a new terminal. Already on 0.6.2 or later? Restart the app and ask **“connect tinyAGENTS”** in a new chat.
+On Windows, run installation commands in **Windows Terminal or Command Prompt**, not in a Codex chat. The guide now uses `npx.cmd` to fetch the official CLI: the Codex desktop app alone does not put a `codex` command on your normal PATH. If `npx.cmd` is missing too, install Node.js 22.18+ and open a new terminal. Already on 0.6.3 or later? Restart the app and ask **“connect tinyAGENTS”** in a new chat.
 
 Install both plugins to use both clients. They share the connection automatically on the same OS account. On another computer, sign into the same account during its browser connection. If the browser does not open, ask the agent **“connect tinyAGENTS”**.
 
@@ -30,24 +30,27 @@ The product is now **tinyAGENTS**. Existing connections still work. The technica
 
 ## On your current Windows computer
 
-The previous connection check confirmed a valid key, but did not prove hooks were running. Two issues were found: Codex 0.161/0.162-alpha ignored the 0.6.0–0.6.1 package's hooks, and this computer was configured for a different office from the one opened by social sign-in. Version **0.6.2** fixes hook discovery and adds a safe office switch.
+Both Codex and Claude have delivered activity to your signed-in office. Codex's hooks are trusted. Keep the existing connection; you do not need to pair it again.
 
-What is left for you:
+After the 0.6.3 plugin update, restart each coding app once so it loads the updated observer. Open your office and work in the projects you want to see. Saved inactive projects are not imported. Two clients working in one repository share a project; separate sessions get their own teams.
 
-1. Update each installed plugin to **0.6.2** using the setup guide, then restart the coding app.
-2. In Codex, open **Settings → Hooks**, select **sidequest-office**, and review/trust its hooks. In the CLI, use **/hooks**. Installation alone does not approve hooks; a popup is not guaranteed.
-3. Ask your coding agent **“Switch tinyAGENTS to my signed-in office.”** Check the account in the browser and click **Connect this computer**. The previous local connection is kept until approval, then backed up privately.
-4. Start a real task. **My account & agents → Agent connection status** shows the last received report and which coding client sent it.
+Room names use the repository name. A renamed chat title is not the repository name.
 
-The pairing file is `%USERPROFILE%\.sidequest\config.json`. Both clients use it. Do not upload either file to GitHub or share it publicly.
+## If activity is missing or delayed
 
-The website's **Live view** badge only describes its live feed. **Waiting for agents** means no activity has reached that office. A paired computer can still be waiting for its first hook report. The `doctor` command shows the configured office ID and the last server receipt for that connection. Review and start a task after updating to confirm actual reporting.
+1. Open **My account & agents → Agent connection status**. Check the separate Codex and Claude receipt times.
+2. Click **Download diagnostics** for the browser report. It includes update counts and receipt times, without prompts, project names, paths or credentials.
+3. In the coding app, ask **“Diagnose my tinyAGENTS connection.”** The plugin's helper checks the office ID, queued events and local logs. You do not need to find a hidden folder or paste credentials.
+
+The observer now retries failed sends automatically for up to a minute, even when no more hooks arrive. If the outage lasts longer, activity stays queued and the next hook retries it. The helper's `flush` command can also retry immediately.
+
+For development: local diagnostics live in `~/.sidequest/diagnostics/` (at most 400 records; records older than three days are pruned on the next write). Run `node <plugin-folder>/scripts/office.mjs logs` to print recent records. Stages show hook received → queued → delivered, with timing and HTTP error codes. `hook.received` missing points to client hook loading/trust; `delivery.failed` points to transport; `delivery.sent` plus no browser update points to office selection or the live feed. No raw errors, transcripts, commands, prompts, repository URLs or credentials are logged. Browser diagnostics keep the latest 200 entries in memory and disappear on reload.
 
 ## Requirements and limits
 
 Node.js 22.18+ must be available where the coding app runs. WSL, containers, SSH and other computers connect separately, using the same account. This supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot execute these local hooks. The coding app's hook trust review is still required.
 
-No model API key, repository clone, npm install or local web server is needed to use the plugin. Existing installations need **0.6.2 or later**; the guide has the update commands.
+No model API key, repository clone, npm install or local web server is needed to use the plugin. Existing installations need **0.6.3 or later**; the guide has the update commands.
 
 ## Your clock and the growing floor plan
 
@@ -55,7 +58,7 @@ New offices save the time zone of the computer connected by the plugin (or the b
 
 To change it: **Office settings → Office clock → Use my current time zone → Save office clock** (legacy offices still ask for the owner file until attached to an account). You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. The clock button cycles through night/day previews and back to the local clock.
 
-Rooms, room sizes, shared-space sizes, placement and connecting paths are generated from the actual teams. Sessions grow their own suites; beyond twelve desks, a session gets an annex. Rooms belonging to the same project are encouraged to stay near one another. The layout can reflow as teams grow. It is not a saved building blueprint or a set of fixed project slots.
+Rooms, room sizes, shared-space sizes, placement and connecting paths are generated from the actual teams. Sessions grow their own suites, with a little spare desk capacity. When a suite fills, new arrivals get an annex sized to their team (up to twelve agents per new suite). Existing rooms, desks, corridors and the camera stay in place during live updates. Use Fit office to frame the expanded campus. Rooms belonging to the same project are encouraged to stay near one another. Reloading the page generates a fresh layout from the current teams; it is not yet a saved building blueprint.
 
 Try **+ Project**, **+ Session**, and **+ Subagent** in the demo. **Reset demo** restores the sample crew. Live offices only grow from real observer events.
 

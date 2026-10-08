@@ -65,7 +65,7 @@ export function applyEvent(office: OfficeState, event: OfficeEvent): OfficeState
     collaboration: event.collaboration,
     ...(event.phase === 'finish' && pending ? { state: pending.state, activity: pending.activity, tool: pending.tool } : {}),
   };
-  const agents = [...office.agents.filter(a => a.key !== key), agent].sort((a, b) => a.joinedAt - b.joinedAt);
+  const agents = previous ? office.agents.map(a => a.key === key ? agent : a) : [...office.agents, agent];
   return { ...office, timeZone: office.timeZone ?? event.timeZone, agents: agents.slice(-160), events: [event, ...office.events].slice(0, 80), seen, revision: office.revision + 1 };
 }
 

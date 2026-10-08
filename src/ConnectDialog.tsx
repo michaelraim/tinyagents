@@ -5,6 +5,7 @@ import LegacyConnectDialog from './LegacyConnectDialog';
 import BrandWordmark from './BrandWordmark';
 import InstallPlugins from './InstallPlugins';
 import { localTimeZone } from '../shared/clock';
+import { diagnosticReport } from './diagnostics';
 type Props = { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void; initialTab?: 'new' | 'existing' };
 type Connection = { id: string; name: string; createdAt: number; reporting?: {lastReceivedAt: number; providers: Partial<Record<'codex'|'claude', number>>} | null };
 export default function ConnectDialog(props: Props) {
@@ -14,6 +15,11 @@ export default function ConnectDialog(props: Props) {
   const [name, setName] = useState('My computer'), [confirmation, setConfirmation] = useState('');
   const [connections, setConnections] = useState<Connection[]>([]), [linked, setLinked] = useState<string[]>([]);
   const [download, setDownload] = useState<{officeId: string; ingestKey: string}>();
+  function downloadDiagnostics() {
+    const report={...diagnosticReport(),connections:connections.map(c=>({lastReceivedAt:c.reporting?.lastReceivedAt??null,providers:c.reporting?.providers??{}}))};
+    const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));
+    const a=document.createElement('a');a.href=url;a.download='tinyagents-diagnostics.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   useEffect(() => { if (!legacy) dialog.current?.showModal(); }, [legacy]);
   useEffect(() => {
     const url = new URL(location.href);
@@ -78,7 +84,9 @@ export default function ConnectDialog(props: Props) {
       {!account.officeId ? <><p className="muted">Install a plugin and approve this computer in the browser. We’ll create your office automatically.</p><InstallPlugins/><button className="primary full" disabled={busy} onClick={() => void create()}>Open an empty office <ArrowRight size={16}/></button><p className="account-fine">☀️ Your office clock: {localTimeZone().replaceAll('_', ' ')}</p><details className="account-details"><summary>I already have an office</summary><p>Load its owner recovery file once. Its people, history and connected coding clients stay exactly where they are. Future sign-ins use this account.</p><label>Original recovery file<input disabled={busy} type="file" accept="application/json,.json" onChange={e => void claim(e.target.files?.[0])}/></label></details></> : <>
         <p className="office-id">Office ID <code>{account.officeId}</code></p>
         <details className="account-details" open><summary>Agent connection status</summary>
-          {connections.length ? connections.map(c => <div className="account-report" key={c.id}><strong>{c.name}</strong><span>{c.reporting ? `Last report: ${new Date(c.reporting.lastReceivedAt).toLocaleString()} · ${Object.keys(c.reporting.providers).map(p => p === 'codex' ? 'Codex' : 'Claude Code').join(' + ')}` : 'Paired · waiting for its first activity report'}</span></div>) : <p>No computers paired through this account yet. If you used an older connection file, compare its office ID above.</p>}
+          <p>Projects appear when a session sends activity after connection. Saved or inactive projects are not imported. Codex and Claude working in the same repository share a room group.</p>
+          {connections.length ? connections.map(c => <div className="account-report" key={c.id}><strong>{c.name}</strong>{(['codex','claude'] as const).map(p=><span key={p}>{p==='codex'?'Codex':'Claude Code'}: {c.reporting?.providers[p]?`last received ${new Date(c.reporting.providers[p]!).toLocaleString()}`:'no activity received yet'}</span>)}</div>) : <p>No computers paired through this account yet. If you used an older connection file, compare its office ID above.</p>}
+          <button className="secondary" onClick={downloadDiagnostics}><Download size={15}/> Download diagnostics</button><p className="account-fine">Recent browser updates and server receipts. No prompts, project names or credentials. For local hook logs, ask your coding agent to diagnose tinyAGENTS.</p>
           <p>Already installed but no agents? Ask your coding agent: <strong>“Diagnose my tinyAGENTS connection and compare the office ID.”</strong> If it points elsewhere, ask <strong>“Switch tinyAGENTS to my signed-in office.”</strong></p>
         </details>
         <details className="account-details" open={!connections.length}><summary>Install or update a coding app plugin</summary><p className="muted">Install on each computer, review its hooks and approve the browser connection.</p><InstallPlugins/></details>

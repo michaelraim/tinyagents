@@ -11,9 +11,12 @@ export function footprint(rects: Rect[]): Rect {
 // Edge candidates are generated from the existing footprint, never from room slots.
 // Dimensions and coordinates share a two-unit grid so circulation can be carved
 // exactly out of the remaining land without overlapping any room floor.
-export function packPlots(specs: Omit<Plot,'x'|'z'>[]): Plot[] {
-  const placed: Plot[] = [];
-  for (const spec of specs) {
+export function packPlots(specs: Omit<Plot,'x'|'z'>[], previous: Plot[] = [], reserved: Rect[] = []): Plot[] {
+  const placed: Plot[] = specs.flatMap(spec => {
+    const old=previous.find(p=>p.id===spec.id && p.w===spec.w && p.d===spec.d);
+    return old ? [{...spec,x:old.x,z:old.z}] : [];
+  });
+  for (const spec of specs.filter(s=>!placed.some(p=>p.id===s.id))) {
     if (!placed.length) { placed.push({...spec,x:0,z:0}); continue; }
     const candidates: Point[] = [];
     for (const anchor of placed) {
@@ -28,6 +31,7 @@ export function packPlots(specs: Omit<Plot,'x'|'z'>[]): Plot[] {
     let best: Point | undefined, score = Infinity;
     for (const candidate of candidates) {
       if (placed.some(p=>Math.abs(p.x-candidate.x)<(p.w+spec.w)/2+3.99 && Math.abs(p.z-candidate.z)<(p.d+spec.d)/2+3.99)) continue;
+      if (reserved.some(p=>Math.abs(p.x-candidate.x)<(p.w+spec.w)/2+.01 && Math.abs(p.z-candidate.z)<(p.d+spec.d)/2+.01)) continue;
       const bounds = footprint([...placed,{...spec,...candidate}]);
       const proximity = siblings.length ? Math.min(...siblings.map(p=>distance(p,candidate))) : distance(candidate,placed[0]);
       const cost = bounds.w*bounds.d + Math.abs(bounds.w-bounds.d)*12 + proximity*14;
@@ -39,11 +43,12 @@ export function packPlots(specs: Omit<Plot,'x'|'z'>[]): Plot[] {
   return placed;
 }
 
-export function connectPlots(plots: Rect[], entrances: Point[], hub: Rect): Rect[] {
+export function connectPlots(plots: Rect[], entrances: Point[], hub: Rect, previous: Rect[] = []): Rect[] {
   const bounds=footprint(plots), margin=6, cells=new Set<string>();
   const key=(x:number,z:number)=>`${x},${z}`;
   const cell=(p:Point)=>({x:Math.floor(p.x/2),z:Math.floor(p.z/2)});
   const center=(p:Point)=>({x:p.x*2+1,z:p.z*2+1});
+  for(const r of previous) for(let x=r.x-r.w/2;x<r.x+r.w/2;x+=2) for(let z=r.z-r.d/2;z<r.z+r.d/2;z+=2) cells.add(key(Math.floor(x/2),Math.floor(z/2)));
   const clear=(x:number,z:number)=>!plots.some(r=>Math.abs(x*2+1-r.x)<r.w/2 && Math.abs(z*2+1-r.z)<r.d/2);
   const goal=cell({x:hub.x+1,z:hub.z+hub.d/2+1});
   const minX=Math.floor((bounds.x-bounds.w/2-margin)/2),maxX=Math.ceil((bounds.x+bounds.w/2+margin)/2);

@@ -20,7 +20,14 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
   const arms = useRef<(Group | null)[]>([]), elbows = useRef<(Group | null)[]>([]), legs = useRef<(Group | null)[]>([]), knees = useRef<(Group | null)[]>([]);
   const coffee = useRef<Group>(null), book = useRef<Group>(null), time = useRef(index * 1.73), sitting = useRef(1);
   const [hovered, setHovered] = useState(false), [transition, setTransition] = useState(0), last = useRef(state);
-  useEffect(() => { if (last.current !== state) { setTransition(Date.now()); last.current = state; } }, [state]);
+  useEffect(() => {
+    if(last.current===state)return;
+    // Tool start/finish alternates work and thinking many times a minute.
+    // Save the big feedback for changes the owner needs to notice.
+    if(['waiting','blocked','done'].includes(state))setTransition(Date.now());
+    else setTransition(0);
+    last.current=state;
+  }, [state]);
   useEffect(() => () => { positions.delete(agent.key); }, [agent.key, positions]);
   const shirt = agent.provider === 'codex' ? ['#327f85','#4b6e9b','#438b6e'][index % 3] : ['#cf7959','#aa665d','#c39549'][index % 3];
   const skin = ['#e9b897','#be8762','#ecc5a2','#9d704f'][index % 4];
@@ -102,7 +109,7 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
     {!reducedMotion && <Footsteps bodyKey={agent.key} simulation={simulation} paused={paused}/>}
     {!reducedMotion && changed && <StatePulse at={transition} color={stateMeta[state].color} paused={paused}/>}
     {!reducedMotion && (showingReaction || changed && state === 'done') && <ReactionBurst at={reaction?.at ?? transition} kind={reaction?.kind ?? 'cheer'} paused={paused}/>}
-    <GameBubble compact={!(selected||hovered||changed||showingReaction||socialLabel)} attention={state==='waiting'||state==='blocked'} text={socialLabel || (showingReaction ? reaction?.kind === 'snack' ? '🍪 nom!' : reaction?.kind === 'poke' ? '👀 hey, you' : '💛 thank you!' : selected||hovered||changed ? `${stateMeta[state].emoji} ${stateMeta[state].feeling}` : `${stateMeta[state].emoji} ${({coding:'😎',thinking:'🤔',testing:'🧐',reading:'👓',waiting:'🥺',blocked:'😵',done:'🥳',idle:'😌',offline:'💤'})[state]}`)}/>
+    <GameBubble compact={!(selected||hovered||showingReaction||socialLabel)} attention={state==='waiting'||state==='blocked'} text={socialLabel || (showingReaction ? reaction?.kind === 'snack' ? '🍪 nom!' : reaction?.kind === 'poke' ? '👀 hey, you' : '💛 thank you!' : selected||hovered ? `${stateMeta[state].emoji} ${stateMeta[state].label}` : stateMeta[state].emoji)}/>
     {(selected||hovered)&&<GameBubble nameplate position={[0,3.7,0]} text={`${role==='Team lead'?'★':agent.parentAgentId?'↳':agent.provider==='codex'?'⌘':'✳'} ${agent.name} · ${projectMark}`}/>}
 
   </group>;

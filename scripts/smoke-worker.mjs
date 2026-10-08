@@ -113,8 +113,10 @@ try {
   await writeFile(file, JSON.stringify({ ...config, endpoint: 'http://127.0.0.1:1/api/events' }));
   assert.equal(await run('plugins/claude/scripts/emit.mjs', ['claude'], JSON.stringify({ session_id: 'acceptance-claude', cwd: '/fixture/private-repo', hook_event_name: 'Stop' })), '{}');
   assert.equal((await readdir(resolve(directory, 'outbox', officeId))).filter(file => file.endsWith('.json')).length, 1);
+  update = message();
   await writeFile(file, JSON.stringify(config));
-  update = message(); assert.match(await run('bridge/office.mjs', ['flush'], ''), /Delivered 1 events/); await update;
+  // The background worker may beat the manual flush after recovery.
+  assert.match(await run('bridge/office.mjs', ['flush'], ''), /Delivered [01] events; 0 still queued/); await update;
   snapshot = await (await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: cookie } })).json();
   assert.equal(snapshot.agents.find(agent => agent.provider === 'claude').state, 'done');
   assert.equal(snapshot.revision, 6);

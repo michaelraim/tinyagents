@@ -7,6 +7,7 @@ import { useAccount } from './AccountContext';
 import type { Reaction } from './scene/Character';
 import './landing.css';
 import BrandWordmark from './BrandWordmark';
+import { useCampus } from './useCampus';
 const OfficeScene=lazy(()=>import('./scene/OfficeScene'));
 
 function MiniOffice(){
@@ -17,8 +18,9 @@ function MiniOffice(){
   useEffect(()=>{const observer=new IntersectionObserver(([entry])=>setVisible(entry.isIntersecting));if(host.current)observer.observe(host.current);return()=>observer.disconnect();},[]);
   useEffect(()=>{if(!visible)return;const timer=setInterval(()=>{setNow(Date.now());setOffice(o=>applyEvent(o,nextDemoEvent(o,tick.current++)));},3000);return()=>clearInterval(timer);},[visible]);
   const projects=useMemo(()=>projectsOf(office),[office]);
+  const plan=useCampus(projects,'landing');
   return <div className="landing-world" ref={host} aria-label="Interactive miniature office with simulated demo activity">
-    <Suspense fallback={<div className="mini-loading">Planting the office garden… 🌱</div>}><OfficeScene projects={projects} events={office.events} now={now} evening={night} paused={!visible} reducedMotion={reduced} focus={null} onSelect={agent=>setReaction({key:agent.key,kind:'snack',at:Date.now()})} reaction={reaction} onWorldAction={()=>{}} onFocus={()=>{}} onHangoutResult={()=>{}}/></Suspense>
+    <Suspense fallback={<div className="mini-loading">Planting the office garden… 🌱</div>}><OfficeScene plan={plan} projects={projects} events={office.events} now={now} evening={night} paused={!visible} reducedMotion={reduced} focus={null} onSelect={agent=>setReaction({key:agent.key,kind:'snack',at:Date.now()})} reaction={reaction} onWorldAction={()=>{}} onFocus={()=>{}} onHangoutResult={()=>{}}/></Suspense>
     <div className="mini-toolbar"><span><i/> A LITTLE DEMO</span><button onClick={()=>setNight(v=>!v)} aria-label={night?'Preview daytime':'Preview nighttime'}>{night?<Moon size={15}/>:<Sun size={15}/>} {night?'Night owls':'Day shift'}</button></div>
     <div className="mini-caption"><span>🍪 Click an agent. Snack delivery is on us.</span><a href="/demo">Explore the demo <ArrowUpRight size={14}/></a></div>
   </div>;

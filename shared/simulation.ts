@@ -100,10 +100,15 @@ export class OfficeSimulation {
     this.nav = new Navigation(plan);
     for (const home of plan.rooms.flatMap(r => r.seats)) {
       const old = previous?.bodies.get(home.agent.key); if (!old) continue;
-      const body: SimBody = { ...old, home, path: [] };
+      const body: SimBody = { ...old, home, path: [...old.path] };
       if (!this.nav.clear(body)) { body.x = home.x; body.z = home.z; body.vx = body.vz = 0; }
       this.bodies.set(body.key, body);
-      this.route(body, old.target);
+      // A campus extension must not make seated people stand up or restart a break.
+      const destination=old.target==='home'?home:plan.destinations[old.target];
+      const oldDestination=old.target==='home'?old.home:previous!.plan.destinations[old.target];
+      let from:Point=body;
+      const pathClear=body.path.every(p=>{const clear=this.nav.line(from,p);from=p;return clear;});
+      if(!pathClear || distance(destination,oldDestination)>.01 || distance(body,old)>.01) this.route(body,old.target);
     }
   }
   sync(agents: Agent[], now: number) {

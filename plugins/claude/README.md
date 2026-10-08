@@ -16,7 +16,7 @@ Restart Claude Code and enable the plugin's hooks. Start a new session.
 
 The plugin opens tinyAGENTS in your browser. Sign in with GitHub or GitLab if needed, check the computer name, and click **Connect this computer**. Your office is created automatically if you don't have one. The page confirms when the connection is saved. Start a task to bring your crew in.
 
-No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, update the marketplace and plugin to 0.6.2 or later, then restart the app. The setup guide has update commands.
+No connection download, repository clone, recovery file or terminal pairing command is needed. If the browser doesn't open, ask your coding agent **connect tinyAGENTS**. The bundled skill returns a link and checks the connection. If already installed, update the marketplace and plugin to 0.6.3 or later, then restart the app. The setup guide has update commands.
 
 Install both plugins if you use both clients. They share one office automatically in the same OS account. An already connected computer stays connected; no browser opens again. Connect separately inside WSL, containers, SSH or on another machine, using the same GitHub/GitLab account. Node must be installed in that environment. On headless machines, use the link returned by the setup skill.
 
@@ -29,10 +29,11 @@ From this plugin folder:
 ```sh
 node scripts/office.mjs connect
 node scripts/office.mjs doctor
+node scripts/office.mjs logs
 node scripts/office.mjs flush
 ```
 
-Connect opens or resumes the browser handoff. Doctor checks credentials, reports the office ID, and shows the last confirmed activity receipt. If the office ID differs from the signed-in website, use `node scripts/office.mjs connect --switch-office` and approve the computer in the browser. The old connection is kept until approval, then backed up privately. Flush retries queued activity. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
+Connect opens or resumes the browser handoff. Doctor checks credentials, reports the office ID, and shows the last confirmed activity receipt. If the office ID differs from the signed-in website, use `node scripts/office.mjs connect --switch-office` and approve the computer in the browser. The old connection is kept until approval, then backed up privately. Flush retries queued activity immediately. Failed sends also retry automatically in a bounded background worker for up to a minute. Logs prints recent privacy-safe diagnostics: hook receipt, queueing, delivery duration and HTTP errors. Automatic pairing lasts 15 minutes and attempts at most once a day after cancellation or failure; an explicit connect retries immediately. Hooks remain fail-open and never change agent decisions. They don't replay activity from before pairing; start a task after connecting.
 
 ## Privacy and configuration
 

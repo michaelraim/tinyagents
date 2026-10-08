@@ -3,23 +3,34 @@ import { sessionsOf, type Agent, type Project, type Session, type Theme } from '
 
 export type Point = { x: number; z: number };
 export type Rect = Point & { w: number; d: number };
-export type Seat = Point & { agent: Agent; desk: Point; facing: number };
+export type Seat = Point & { agent: Agent; desk: Point; facing: number; slot?: number };
 export type Fixture = Rect & { kind: 'collab' | 'printer' | 'feature' };
-export type Room = Rect & { id: string; projectId: string; name: string; theme: Theme; agents: Agent[]; session: Session; annex: number; first: boolean; side: number; doorZ: number; seats: Seat[]; fixtures: Fixture[] };
+export type Room = Rect & { id: string; projectId: string; name: string; theme: Theme; agents: Agent[]; session: Session; annex: number; first: boolean; side: number; doorZ: number; seats: Seat[]; fixtures: Fixture[]; columns: number; capacity: number };
 export type OfficePlan = { rooms: Room[]; walkways: Rect[]; hall: Rect; lounge: Rect; reception: Rect; meeting: Rect; quiet?: Rect; bounds: Rect; floors: Rect[]; obstacles: Rect[]; destinations: Point[]; socialSpots: Record<'coffee'|'duck'|'arcade'|'standup', number[]> };
 
-function generateCampus(projects: Project[]) {
+function generateCampus(projects: Project[], previous?: OfficePlan) {
   const count=projects.reduce((n,p)=>n+p.agents.length,0);
   const hubSize=8+4*Math.ceil(Math.sqrt(Math.max(1,count))/3);
   const specs: {id:string;group:string;w:number;d:number}[]=[{id:'hub',group:'commons',w:hubSize,d:hubSize}];
   const rooms:Room[]=[];
   for(const project of projects){let first=true;
-    for(const session of sessionsOf(project))for(let offset=0;offset<session.agents.length;offset+=12){
-      const agents=session.agents.slice(offset,offset+12),cols=Math.min(agents.length,5,Math.ceil(Math.sqrt(agents.length*1.2)));
-      const w=6+cols*4,d=6+Math.ceil(agents.length/cols)*6;
-      const id=`${project.id}:${session.key}:${offset/12}`;
-      specs.push({id,group:project.id,w,d});
-      rooms.push({id,projectId:project.id,name:project.name,theme:project.theme,session,agents,w,d,x:0,z:0,side:1,doorZ:0,seats:[],fixtures:[],annex:offset/12,first});first=false;
+    for(const session of sessionsOf(project)) {
+      const oldRooms=previous?.rooms.filter(r=>r.projectId===project.id&&r.session.key===session.key)??[];
+      const assigned=new Set(oldRooms.flatMap(r=>r.agents.map(a=>a.key)));
+      const newcomers=session.agents.filter(a=>!assigned.has(a.key));
+      const add=(room:Room)=>{rooms.push(room);specs.push({id:room.id,group:project.id,w:room.w,d:room.d});first=false;};
+      for(const old of oldRooms) {
+        const agents=old.agents.flatMap(a=>session.agents.find(b=>b.key===a.key)??[]);
+        agents.push(...newcomers.splice(0,old.capacity-agents.length));
+        if(agents.length) add({...old,name:project.name,theme:project.theme,session,agents,first});
+      }
+      let annex=oldRooms.reduce((n,r)=>Math.max(n,r.annex+1),0);
+      while(newcomers.length) {
+        const agents=newcomers.splice(0,12),cols=Math.min(5,Math.max(2,Math.ceil(Math.sqrt(agents.length*1.2))));
+        const capacity=cols*Math.ceil(agents.length/cols),w=6+cols*4,d=6+Math.ceil(capacity/cols)*6;
+        const id=`${project.id}:${session.key}:${annex}`;
+        add({id,projectId:project.id,name:project.name,theme:project.theme,session,agents,w,d,x:0,z:0,side:1,doorZ:0,seats:[],fixtures:[],annex,first,columns:cols,capacity});annex++;
+      }
     }
   }
   // Shared-space capacity follows the office population, with furniture clearance
@@ -28,24 +39,26 @@ function generateCampus(projects: Project[]) {
   specs.push({id:'cafe',group:'commons',w:12+extra,d:12+extra},
     {id:'meeting',group:'commons',w:12+extra,d:14+extra},
     {id:'reception',group:'commons',w:12+extra,d:10+extra});
-  const plots=packPlots(specs),get=(id:string)=>plots.find(p=>p.id===id)!;
+  const oldPlots=previous ? [...previous.rooms.map(r=>({...r,group:r.projectId})),...(['hall','lounge','meeting','reception'] as const).map((name,i)=>({...previous[name],id:['hub','cafe','meeting','reception'][i],group:'commons'}))] : [];
+  for(const spec of specs.filter(s=>s.group==='commons')) {const old=oldPlots.find(p=>p.id===spec.id);if(old){spec.w=old.w;spec.d=old.d;}}
+  const plots=packPlots(specs,oldPlots,previous?.walkways),get=(id:string)=>plots.find(p=>p.id===id)!;
   for(const room of rooms){const plot=get(room.id);Object.assign(room,{x:plot.x,z:plot.z});
     room.side=room.x<0?-1:1;room.doorZ=room.z+room.d/2-2.35;
-    const cols=Math.min(room.agents.length,5,Math.ceil(Math.sqrt(room.agents.length*1.2)));
-    room.seats=room.agents.map((agent,i)=>{const desk={x:room.x-(cols-1)*2.1+i%cols*4.2,z:room.z-room.d/2+3.5+Math.floor(i/cols)*5.4};const facing=i%2===0?0:Math.PI;return{agent,desk,x:desk.x,z:desk.z+(facing===0?-1.65:1.65),facing};});
+    const cols=room.columns,oldSeats=room.seats;
+    const used=new Set(oldSeats.filter(s=>room.agents.some(a=>a.key===s.agent.key)).map(s=>s.slot));
+    room.seats=room.agents.map(agent=>{let i=oldSeats.find(s=>s.agent.key===agent.key)?.slot;if(i===undefined){i=0;while(used.has(i))i++;used.add(i);}const desk={x:room.x-(cols-1)*2.1+i%cols*4.2,z:room.z-room.d/2+3.5+Math.floor(i/cols)*5.4};const facing=i%2===0?0:Math.PI;return{agent,slot:i,desk,x:desk.x,z:desk.z+(facing===0?-1.65:1.65),facing};});
     room.fixtures=[{kind:'printer',x:room.x+room.side*(room.w/2-1.4),z:room.z+room.d/2-2.25,w:1.9,d:1.8}];
-    if(room.agents.length===4)room.fixtures.push({kind:'collab',x:room.x+2.1,z:room.z-room.d/2+8.7,w:4.2,d:3.2});
-    if(room.agents.length<=2)room.fixtures.push({kind:'feature',x:room.x-room.side*(room.w/2-1.8),z:room.z+.8,w:2,d:1.8});
+    if(room.capacity<=2)room.fixtures.push({kind:'feature',x:room.x-room.side*(room.w/2-1.8),z:room.z+.8,w:2,d:1.8});
   }
   const hall=get('hub'),lounge=get('cafe'),meeting=get('meeting'),reception=get('reception');
   const entrances=[...rooms.map(r=>({x:r.x-r.side*(r.w/2+1),z:r.doorZ})),...[lounge,meeting,reception].map(r=>({x:r.x+1,z:r.z+r.d/2+1}))];
-  const walkways=connectPlots(plots,entrances,hall);
+  const walkways=connectPlots(plots,entrances,hall,previous?.walkways);
   return {rooms,hall,lounge,meeting,reception,walkways};
 }
 
 export function layoutRooms(projects:Project[]):Room[]{return generateCampus(projects).rooms;}
-export function officePlan(projects: Project[]): OfficePlan {
-  const {rooms,hall,lounge,meeting,reception,walkways}=generateCampus(projects);
+export function officePlan(projects: Project[], previous?: OfficePlan): OfficePlan {
+  const {rooms,hall,lounge,meeting,reception,walkways}=generateCampus(projects,previous);
   const quiet:Rect|undefined=undefined;
   const floors:Rect[]=[...rooms,hall,lounge,meeting,reception,...walkways];
   const minX = Math.min(...floors.map(r => r.x - r.w / 2)), maxX = Math.max(...floors.map(r => r.x + r.w / 2));

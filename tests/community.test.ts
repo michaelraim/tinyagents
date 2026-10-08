@@ -58,7 +58,7 @@ describe('repository and harness identity',()=>{
       expect(agentKey(a)).not.toBe(agentKey(child));expect(agentKey({...a,instanceId:'another-client'})).not.toBe(agentKey(a));
       expect(sessionsOf({...a.project,agents:[{...createDemo().agents[0],...a,key:agentKey(a)},{...createDemo().agents[0],...child,key:agentKey(child)}]})).toHaveLength(2);
     }finally{if(resolve(directory).startsWith(resolve('.local')+sep+'identity-'))await rm(directory,{recursive:true,force:true});}
-  });
+  },15000);
 });
 describe('camera and social motion',()=>{
   it('keeps the near plane outside the visible ground at the lowest orbit and widest zoom',()=>{

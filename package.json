@@ -1,13 +1,13 @@
 {
   "name": "tiny-agents",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "npm run plugins:build && tsc -b && tsc -p tsconfig.worker.json && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers 2",
     "bridge": "node server/local.mjs",
     "plugins:build": "node scripts/build-plugins.mjs",
     "assets:build": "node scripts/build-assets.mjs",

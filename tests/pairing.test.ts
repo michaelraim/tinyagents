@@ -66,6 +66,7 @@ describe('automatic plugin connection', () => {
       const config = JSON.parse(await readFile(configFile, 'utf8'));
       expect(config).toEqual({ endpoint: origin + '/api/events', officeId, ingestKey });
       await hook('codex'); await hook('claude');
+      await until(async () => events.length === 2 || undefined);
       expect(events.map(e => e.provider).sort()).toEqual(['claude', 'codex']);
       expect(starts).toBe(1);
       await until(async () => JSON.parse(await readFile(stateFile, 'utf8')).status === 'connected' || undefined);
