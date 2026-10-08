@@ -8,15 +8,15 @@ The owner-facing checklist is in [launch-guide.md](launch-guide.md). End-user se
 - Website: `https://tinyagents.michael-325.workers.dev`
 - Static assets: Vite's `dist/`, with API requests routed to the Worker first.
 - State: one SQLite Durable Object per office, binding `OFFICES`, class `Office`.
-- Live updates: separate private and public hibernatable WebSockets. Private streams require a viewer cookie; public streams require owner-enabled sharing.
-- Public registration: `PUBLIC_SIGNUP=true` in `wrangler.jsonc`.
+- Accounts: Better Auth in the Worker, Cloudflare D1 binding `AUTH_DB`, migrations in `migrations/`. Private streams accept the owning account session or a legacy viewer cookie; public streams require owner-enabled sharing.
+- Public registration: GitHub/GitLab social sign-in once either provider is configured. `PUBLIC_SIGNUP=true` permits only legacy signup while neither provider is configured.
 - No external database, R2 bucket, AI API keys or always-on Node server is required.
 
 Do not rename the Worker or Durable Object binding casually; doing so can select different state.
 
 ## Deployment
 
-Push to main. The Verify and deploy workflow waits for both Windows and Linux verification, skips an outdated commit if main has moved, deploys with the GitHub Actions secrets, and checks the public URL. Pull requests run verification only.
+Push to main. The Verify and deploy workflow waits for both Windows and Linux verification, skips an outdated commit if main has moved, applies D1 migrations, deploys with the GitHub Actions secrets, and checks the public URL. Pull requests run verification only.
 
 GitHub repository secrets: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The deployment job uses the `production` environment. A manual Deploy to Cloudflare workflow is available for retries.
 
@@ -33,7 +33,15 @@ Do not commit tokens, private connection/recovery files, `.env`, `.dev.vars`, `.
 
 If a deployment breaks the UI, revert the offending commit and push main again. Inspect GitHub Actions for failed verification, deployment or health steps. Keep storage schema changes backward-compatible before using Worker rollbacks.
 
-## Registration and authentication
+## Social sign-in
+
+See [sso-setup.md](sso-setup.md) for provider registration, exact callbacks and Worker secret names. `AUTH_BASE_URL` is fixed configuration, not derived from forwarded headers. Both providers need an ID and secret. `BETTER_AUTH_SECRET` signs cookies and encrypts stored provider tokens; keep it stable. Google/email-password login is disabled. OAuth routes are allowlisted, permission scopes and return URLs are fixed on the server, and account linking requires an authenticated flow.
+
+The unique `office_owner` mapping binds one account to one office. First-time creation reserves a random ID in D1 and initializes the Durable Object idempotently. Import requires the original owner key; viewer keys cannot claim an office. Internal ownership/session headers are stripped from all incoming requests, then set only after database-backed authentication and a matching ownership record. A signed-in account cannot inherit another office from a legacy browser cookie.
+
+Each account can issue up to 20 computer connections. Only their hashes are stored. Removing one leaves others active. Legacy keys remain valid after import; replacing all keys invalidates every connection. Social sessions expire after 30 days, with no cookie cache. Logout closes that session’s office streams and clears legacy cookies. Stream updates and pings recheck session expiry/revocation in D1. Account deletion removes the office, user, linked accounts, sessions and ownership mapping. Cloudflare backup retention still applies.
+
+## Legacy registration and authentication
 
 A new office returns four values: its ID, ingest key, viewer key and owner/recovery key. Only key hashes are persisted server-side.
 
@@ -47,18 +55,26 @@ A new office returns four values: its ID, ingest key, viewer key and owner/recov
 
 Users manage keys and deletion through Connect agents → Manage. Pre-0.3 local offices do not have a recovery key; create a new local office to use management. No such old office was deployed to this public Worker.
 
-For a temporary signup pause, change `PUBLIC_SIGNUP` to `false`. Without `REGISTRATION_KEY`, registration then returns 503. If an invite is desired for a separate deployment, add `REGISTRATION_KEY` as a Worker secret. Existing office access continues.
+For a temporary **legacy** signup pause, change `PUBLIC_SIGNUP` to `false`. This flag does not pause social sign-in. Without `REGISTRATION_KEY`, registration then returns 503. If an invite is desired for a separate deployment, add `REGISTRATION_KEY` as a Worker secret. Existing office access continues.
 
 ## Public API
 
 | Method | Route | Credential |
 | --- | --- | --- |
 | GET | /api/health | None |
-| POST | /api/offices | None in public mode |
+| POST | /api/offices | Legacy signup only, while no social provider is configured |
+| GET | /api/account | Returns provider readiness and the current account/office (or null) |
+| POST | /api/account/office | Account cookie; create or claim with owner proof |
+| DELETE | /api/account | Account cookie; delete account and its office |
+| POST | /api/auth/sign-in/social | GitHub or GitLab OAuth start |
+| GET | /api/auth/callback/github or /gitlab | OAuth state and provider callback |
+| POST | /api/auth/link-social or /sign-out | Account cookie |
+| GET | /api/auth/get-session or /list-accounts | Current account session |
+| GET / POST / DELETE | /api/connections?office=ID | Owning account cookie or legacy owner key |
 | POST | /api/session | Office ID and viewer/recovery key in JSON |
 | POST | /api/connection | Ingest bearer key + X-Office-Id |
 | POST | /api/events | Ingest bearer key + X-Office-Id |
-| GET | /api/snapshot?office=ID | Viewer cookie |
+| GET | /api/snapshot?office=ID | Account or legacy viewer cookie |
 | GET | /api/stream?office=ID | Viewer cookie, WebSocket upgrade |
 | GET / POST | /api/share?office=ID | Recovery bearer key |
 | GET | /api/public?office=ID | None; owner must enable sharing |
@@ -93,7 +109,7 @@ Each office accepts up to 600 ingestion batches per minute and 10 private viewer
 
 Local observers hold up to 256 events, discard events older than seven days and retry on future hooks. The optional `watch` command retries every five seconds. It is not installed as an OS service.
 
-Watch Worker requests, errors and Durable Object usage in Cloudflare. Free-tier limits still apply. No large-public-load test has been performed. Account-based quotas, stronger abuse controls, long-term history, and device-specific key management are future work. An operator can inspect stored metadata; this is not end-to-end encrypted storage.
+Watch Worker requests, errors and Durable Object usage in Cloudflare. Free-tier limits still apply. No large-public-load test has been performed. Stronger global abuse controls and long-term history are future work. D1 stores login profile and session data, including provider email and session network metadata; see the privacy page. An operator can inspect stored metadata; this is not end-to-end encrypted storage.
 
 ## Development and checks
 
@@ -103,7 +119,7 @@ npm run verify
 npm audit
 ```
 
-Verification builds plugin downloads and the frontend, checks TypeScript, runs tests, performs a Worker dry run, then starts an isolated local Worker and tests signup, real observer processes, private office isolation, hierarchy, WebSockets, queue retry, recovery, rotation, public sharing/projection/revocation and deletion.
+Verification also runs both OAuth flows with mocked external providers against real workerd/D1/Durable Objects, testing account isolation, concurrent office creation, owner-file import, connection revocation, sign-out and account deletion. No fake login endpoint is shipped. Verification builds plugin downloads and the frontend, checks TypeScript, runs tests, performs a Worker dry run, then starts an isolated local Worker and tests signup, real observer processes, private office isolation, hierarchy, WebSockets, queue retry, recovery, rotation, public sharing/projection/revocation and deletion.
 
 ```sh
 npm run dev

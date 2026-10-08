@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ExternalLink, Link, X } from 'lucide-react';
 import type { useFriends } from './useFriends';
 import type { Designs } from './scene/OfficeScene';
@@ -6,12 +6,13 @@ import { privateSharing, type ShareSettings } from '../shared/public-office';
 import { hangouts, VISITOR_LIMIT, type Hangout } from '../shared/neighborhood';
 import { summarizeAgents } from '../shared/protocol';
 
-export default function FriendsPanel({ book, officeId, visitId, onVisit, onHome, onConnect, onClose, neighborhoodOn, onNeighborhood, onHangout, designs, now }: {
-  book: ReturnType<typeof useFriends>; officeId: string; visitId: string; onVisit: (id: string) => void; onHome: () => void; onConnect: () => void; onClose: () => void;
+export default function FriendsPanel({ accountOwned = false, book, officeId, visitId, onVisit, onHome, onConnect, onClose, neighborhoodOn, onNeighborhood, onHangout, designs, now }: {
+  accountOwned?: boolean; book: ReturnType<typeof useFriends>; officeId: string; visitId: string; onVisit: (id: string) => void; onHome: () => void; onConnect: () => void; onClose: () => void;
   neighborhoodOn: boolean; onNeighborhood: (value: boolean) => void; onHangout: (kind: Hangout['kind']) => void; designs: Designs; now: number;
 }) {
   const [link, setLink] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [key, setKey] = useState(''), [settings, setSettings] = useState<ShareSettings>(privateSharing), [loaded, setLoaded] = useState(false);
+  useEffect(() => { if (accountOwned && officeId) void load(); }, [accountOwned, officeId]);
   async function loadRecovery(file?: File) {
     try {
       if (!file || file.size > 16384) throw new Error('Choose your office recovery file.');
@@ -22,7 +23,7 @@ export default function FriendsPanel({ book, officeId, visitId, onVisit, onHome,
   }
   async function load(owner = key) {
     setBusy(true); setNotice('');
-    try { const res = await fetch(`/api/share?office=${officeId}`, { headers: { Authorization: `Bearer ${owner}` }, signal: AbortSignal.timeout(8000) }); if (!res.ok) throw new Error('Your recovery key is needed to change sharing.'); setSettings(await res.json()); setLoaded(true); }
+    try { const res = await fetch(`/api/share?office=${officeId}`, { headers: { Authorization: `Bearer ${owner}` }, signal: AbortSignal.timeout(8000) }); if (!res.ok) throw new Error('Sign in again or use your owner recovery key to change sharing.'); setSettings(await res.json()); setLoaded(true); }
     catch (error) { setNotice((error as Error).message); } finally { setBusy(false); }
   }
   async function publish(enabled: boolean) {
@@ -52,7 +53,7 @@ export default function FriendsPanel({ book, officeId, visitId, onVisit, onHome,
       <p className="social-footnote">Hangouts happen in your view with characters between tasks. They never send messages to your friends, change work state, or control real agents. Friends are saved in this browser.</p>
       <details className="share-office"><summary><Link size={15}/> Share my office</summary>
         {!officeId ? <><p>Connect your own office first, then choose what visitors can see.</p><button className="primary" onClick={onConnect}>Connect my office</button></> : <>
-          {!loaded ? <><p>Your office is private by default. Load your recovery file to manage its visitor link.</p><label>Office recovery file<input type="file" accept=".json" onChange={e=>void loadRecovery(e.target.files?.[0])}/></label><label>Or recovery key<input type="password" autoComplete="off" value={key} onChange={e=>setKey(e.target.value)}/></label><button className="primary" disabled={busy || !key} onClick={()=>void load()}>Load sharing settings</button></> : <>
+          {!loaded && accountOwned ? <><p>Loading your sharing settings…</p><button disabled={busy} onClick={()=>void load()}>Try again</button></> : !loaded ? <><p>Your office is private by default. Load your recovery file to manage its visitor link.</p><label>Office recovery file<input type="file" accept=".json" onChange={e=>void loadRecovery(e.target.files?.[0])}/></label><label>Or recovery key<input type="password" autoComplete="off" value={key} onChange={e=>setKey(e.target.value)}/></label><button className="primary" disabled={busy || !key} onClick={()=>void load()}>Load sharing settings</button></> : <>
             <label>Public office name<input maxLength={60} value={settings.name} onChange={e=>setSettings(v=>({...v,name:e.target.value}))}/></label>
             <label>Office motto<input maxLength={180} placeholder="Disrupting the coffee industry. From the inside." value={settings.bio} onChange={e=>setSettings(v=>({...v,bio:e.target.value}))}/></label>
             <label className="check-label"><input type="checkbox" checked={settings.projectNames} onChange={e=>setSettings(v=>({...v,projectNames:e.target.checked}))}/> Show project names and room descriptions</label>

@@ -4,6 +4,8 @@ import './styles.css';
 import './tycoon.css';
 import './campus.css';
 import './brand-theme.css';
+import { AccountProvider } from './AccountContext';
+import './account.css';
 const App=lazy(()=>import('./App'));
 const Landing=lazy(()=>import('./Landing'));
 function Router(){
@@ -12,4 +14,4 @@ function Router(){
   const route=new URL(url),inOffice=route.pathname==='/office'||route.pathname==='/demo'||route.searchParams.has('visit');
   return <Suspense fallback={<div className="world-loading">Opening tinyAGENTS…</div>}>{inOffice?<App/>:<Landing/>}</Suspense>;
 }
-createRoot(document.getElementById('root')!).render(<Router />);
+createRoot(document.getElementById('root')!).render(<AccountProvider><Router /></AccountProvider>);

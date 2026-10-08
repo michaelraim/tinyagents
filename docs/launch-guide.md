@@ -4,7 +4,13 @@ Homepage: **https://tinyagents.michael-325.workers.dev**
 
 Your workspace: **https://tinyagents.michael-325.workers.dev/office** · Demo: **https://tinyagents.michael-325.workers.dev/demo**
 
-The website is open to everyone. Anyone can create an office without an invite. Each office stays private until its owner opens a public visitor link.
+GitHub and GitLab sign-in are implemented. To activate them for everyone, complete the [OAuth setup steps](sso-setup.md): create the two apps and add their four values to Cloudflare. The database and login signing secret are already configured. Google is not used. Offices stay private until their owners open visitor links.
+
+## First: activate sign-in
+
+1. Follow [these exact GitHub and GitLab setup steps](sso-setup.md).
+2. Sign in and choose **I already have an office**. Select `%USERPROFILE%\.sidequest\recovery.json` once to attach your existing office. Do not create another office if you want to keep this one.
+3. Future sign-ins need only your GitHub or GitLab account. Link the other provider under **Sign-in & account** to use either.
 
 ## You do not need to set up hosting
 
@@ -14,7 +20,7 @@ Every push to **main** runs checks on Windows and Linux. When both pass, GitHub 
 
 See progress under [GitHub Actions](https://github.com/michaelraim/tinyagents/actions).
 
-The product is now **tinyAGENTS**. Existing connections still work. The technical plugin ID `sidequest-office`, the `~/.sidequest` folder, and older downloaded files remain supported so installed observers do not get disconnected. New downloads are named `tinyagents.config.json` and `tinyagents.recovery.json`.
+The product is now **tinyAGENTS**. Existing connections still work. The technical plugin ID `sidequest-office`, the `~/.sidequest` folder, and older downloaded files remain supported so installed observers do not get disconnected. The connection download is `tinyagents.config.json`. Existing recovery files still work; new social-login accounts do not need one.
 
 ## On your current Windows computer
 
@@ -25,7 +31,7 @@ What is left for you:
 1. Restart Codex and Claude Code.
 2. Check **/hooks** in each client. Enable **sidequest-office** and review/trust its hooks when asked.
 3. Start a new task in a project. Open **/office** to watch its agent appear. The homepage is now an introduction, not your workspace.
-4. Back up `%USERPROFILE%\.sidequest\recovery.json` somewhere private. You need it to open this office in another browser, replace keys, or delete the office.
+4. Keep the old recovery file private. After you attach this office to your account, normal access and management use sign-in.
 
 The pairing file is `%USERPROFILE%\.sidequest\config.json`. Both clients use it. Do not upload either file to GitHub or share it publicly.
 
@@ -34,10 +40,10 @@ The observer packages were tested against the live server. Your first real task 
 ## For everyone else, or another computer
 
 1. Open the website and click **Get your office**.
-2. Save the recovery and connection files.
+2. Sign in with GitHub or GitLab, create your office, and download a connection file.
 3. Follow the [short connection guide](https://tinyagents.michael-325.workers.dev/setup.html). It has copyable commands for Windows, macOS, Linux, Codex and Claude Code.
 
-To use your existing office on another computer, copy your private connection file there and pair that computer using the same guide. Use your recovery file to sign into the website.
+To use your existing office on another computer, copy your private connection file there and pair that computer using the same guide. Sign into the website with the same provider account.
 
 You need Node.js 22.18 or newer on the computer where the agents run. If an agent runs inside WSL or on another computer, pair it there too. This version supports locally running Codex/Claude sessions; Codex cloud-orchestrated sessions cannot run the local observer.
 
@@ -47,7 +53,7 @@ You do not need to give the website an OpenAI or Anthropic API key.
 
 New offices save the time zone of the browser that creates them. Older offices pick up the first connected observer's time zone, unless the owner has already set one. Visitors see the owner's local time. A second harness cannot move an established office clock.
 
-To change it: **Office settings → Office clock → Load owner recovery file → Use my current time zone → Save office clock**. You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. The clock button cycles through night/day previews and back to the local clock.
+To change it: **Office settings → Office clock → Use my current time zone → Save office clock** (legacy offices still ask for the owner file until attached to an account). You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. The clock button cycles through night/day previews and back to the local clock.
 
 Rooms, room sizes, shared-space sizes, placement and connecting paths are generated from the actual teams. Sessions grow their own suites; beyond twelve desks, a session gets an annex. Rooms belonging to the same project are encouraged to stay near one another. The layout can reflow as teams grow. It is not a saved building blueprint or a set of fixed project slots.
 
@@ -64,7 +70,7 @@ Coffee chats, hallway hellos, rubber-duck clubs and arcade rivalries also happen
 ## Share your office and visit friends
 
 1. Open **Friends → Share my office**.
-2. Choose your recovery file. Set your public office name and motto.
+2. Set your public office name and motto. Signed-in owners do not need a recovery file.
 3. Leave project names off for anonymous room names, or turn them on to share names and room briefs.
 4. Click **Open visitor link**, then **Copy link**. Anyone with that link can watch without an account.
 5. To stop sharing, return here and click **Close visitor link**.
@@ -106,18 +112,18 @@ Cloudflare's [deployment token instructions](https://developers.cloudflare.com/w
 
 ## Everyday use
 
-- **Open your office elsewhere:** Connect agents → Open office → choose the recovery file.
-- **Lost or exposed connection key:** Connect agents → Manage → choose the recovery file → Replace all keys. Save the new files and pair your clients again.
-- **Delete an office:** Connect agents → Manage → choose the recovery file → Delete this office.
+- **Open your office elsewhere:** sign in with the same GitHub or GitLab account.
+- **Lost or exposed connection key:** My account & agents → Connected computers → Remove the affected connection. Download a new connection file and pair that computer again. For old pre-SSO keys, use the legacy Manage screen to replace all keys.
+- **Delete your account and office:** My account & agents → Sign-in & account → Delete my account and office.
 - **No agents appear:** run `node bridge/office.mjs doctor` from your checkout. Then check hook trust and start a new task.
 - **Updates stopped after a network problem:** run `node bridge/office.mjs flush`.
 
-Save the recovery file. There is no email reset. Someone with a viewer key can watch but cannot delete your office or replace its keys.
+Your GitHub or GitLab account is your way back in. Keep its own account recovery options current. Existing viewer keys only grant viewing; they cannot claim an office. Old owner recovery keys remain valid, so keep those files private.
 
 ## What to expect
 
 This is a public beta. The simulation mirrors observed activity; it does not send prompts, approve requests, or control real agents. Long periods without hooks appear as missing activity rather than invented work.
 
-Cloudflare's free plan has usage limits. Watch usage in the dashboard as the number of users grows. The app has signup and recovery rate limits, private office keys, and bounded history; it has not been load-tested for a large public launch.
+Cloudflare's free plan has usage limits. Watch usage in the dashboard as the number of users grows. The app has login and management rate limits, account ownership checks, private office keys, and bounded history; it has not been load-tested for a large public launch.
 
 [What the app stores](https://tinyagents.michael-325.workers.dev/privacy.html) · [Technical operations](operations.md)

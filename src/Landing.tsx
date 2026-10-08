@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUpRight, Check, Github, Moon, Play, Sun } from 'lucide
 import { applyEvent, projectsOf } from '../shared/protocol';
 import { createDemo, nextDemoEvent } from './demo';
 import ConnectDialog from './ConnectDialog';
+import { useAccount } from './AccountContext';
 import type { Reaction } from './scene/Character';
 import './landing.css';
 import BrandWordmark from './BrandWordmark';
@@ -25,15 +26,17 @@ function MiniOffice(){
 
 export default function Landing(){
   const [connect,setConnect]=useState<'new'|'existing'>(),connected=useRef(''),root=useRef<HTMLDivElement>(null);
-  const [hasOffice]=useState(()=>{try{return !!localStorage.getItem('sidequest.office');}catch{return false;}});
+  const account = useAccount();
+  const [savedOffice]=useState(()=>{try{return !!localStorage.getItem('sidequest.office');}catch{return false;}});
   useEffect(()=>{
     document.title='tinyAGENTS — a little world for your coding agents';
     const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('revealed');observer.unobserve(e.target);}}),{root:root.current,threshold:.12});
     root.current?.querySelectorAll('.reveal').forEach(el=>observer.observe(el));return()=>observer.disconnect();
   },[]);
+  const hasOffice = !!account.officeId || (!account.user && savedOffice);
   function enter(id:string){connected.current=id;try{localStorage.setItem('sidequest.office',id);localStorage.setItem('sidequest.mode','live');}catch{/* The server session remains valid. */}}
   return <div className="landing" ref={root}>
-    <nav className="landing-nav" aria-label="Main navigation"><a className="landing-brand" href="/"><img src="/favicon.svg" alt=""/><BrandWordmark/><span className="brand-beta">public beta</span></a><div><a className="nav-tour" href="#how-it-works">How it works</a><a href={hasOffice?'/office':'/demo'}>{hasOffice?'My office':'Take a look'} <ArrowUpRight size={14}/></a><button onClick={()=>setConnect('new')}>Get your office <ArrowRight size={16}/></button></div></nav>
+    <nav className="landing-nav" aria-label="Main navigation"><a className="landing-brand" href="/"><img src="/favicon.svg" alt=""/><BrandWordmark/><span className="brand-beta">public beta</span></a><div><a className="nav-tour" href="#how-it-works">How it works</a><a href={hasOffice?'/office':'/demo'}>{hasOffice?'My office':'Take a look'} <ArrowUpRight size={14}/></a><button onClick={()=>setConnect('new')}>{account.user ? 'My account' : 'Get your office'} <ArrowRight size={16}/></button></div></nav>
     <main>
       <section className="landing-hero">
         <div className="hero-copy"><div className="landing-kicker"><i/> CODEX + CLAUDE CODE. ONE LITTLE WORLD.</div><h1>Small crew.<br/>Big things.<br/><em>A world of their own.</em><span className="hero-spark">✳</span></h1><p>Turn all those busy terminals into a living, breathing office. Watch your team build, think, ask for help, and take a very well-earned coffee break.</p><div className="hero-actions"><button className="landing-primary" onClick={()=>setConnect('new')}>Make yourself at home <ArrowRight size={19}/></button><a href="/demo"><Play size={15}/> Play with the demo</a></div><div className="hero-fine"><Check size={14}/> Free to start <span>·</span> Your own private office <span>·</span> Both harnesses welcome</div></div>

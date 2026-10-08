@@ -6,7 +6,7 @@ A public beta of a living Three.js coworking office for Codex and Claude Code. A
 
 **[Homepage](https://tinyagents.michael-325.workers.dev)** · **[Open your office](https://tinyagents.michael-325.workers.dev/office)** · **[Connect your agents](https://tinyagents.michael-325.workers.dev/setup.html)** · **[Owner checklist](docs/launch-guide.md)**
 
-Anyone can create an office; its activity is private. Cloudflare Workers serves the website and SQLite Durable Objects store office state. Every push to main deploys automatically after Windows and Linux checks pass.
+Users sign in with GitHub or GitLab; their office activity is private. The operator first completes the [OAuth setup](docs/sso-setup.md). Cloudflare Workers serves the website and SQLite Durable Objects store office state. Every push to main deploys automatically after Windows and Linux checks pass.
 
 ## Run it
 
@@ -39,7 +39,8 @@ Choose **Connect agents → Create my office**. Save the connection file and vie
 - Poke, snack, and cheer reactions. These are visual interactions and do not send prompts or influence the real agent.
 - Local hook normalization, bounded disk outbox, automatic next-hook retries, manual flush/optional retry watcher, authenticated pairing diagnostics, WebSocket snapshots, and persistence.
 - Generated Codex and Claude plugin folders and zip downloads, using a shared dependency-free Node observer.
-- A Cloudflare Worker with one SQLite-backed Durable Object per office, hibernatable WebSockets, stored state, public registration with rate limits, recovery keys, key replacement, and office deletion.
+- GitHub/GitLab social login via Better Auth and Cloudflare D1, cross-device office ownership, explicit linking of both providers, per-computer connection keys, sign-out and account deletion. Existing offices can be attached with their original owner key.
+- A Cloudflare Worker with one SQLite-backed Durable Object per office, hibernatable WebSockets, stored state, rate limits, legacy key compatibility and office deletion.
 
 - A motion-rich public homepage with an interactive miniature, signup and a separate demo route.
 - Owner-local office clocks with automatic gradual day/night lighting and daylight-saving support. Neighbors keep their own room clock and lighting. Manual day/night preview is temporary.
@@ -64,15 +65,18 @@ The live app is deployed by GitHub Actions on pushes to main. See [operations](d
 
 ```sh
 npx wrangler login
+# Create your own D1 database, set its ID/base URL in wrangler.jsonc,
+# and configure signing/provider secrets as described in docs/sso-setup.md.
 npm run deploy
 ```
 
-Registration is public by default. Each office receives separate ingest, viewer and recovery keys. Viewer cookies are HttpOnly, SameSite=Strict, and Secure on the hosted Worker. WebSockets use the viewer cookie rather than exposing a secret in their URL. Configure the connection file from the hosted app, not the local demo URL. No third-party model API key is required.
+Once either OAuth provider is configured, registration uses social sign-in. The legacy anonymous-signup API is disabled automatically. While provider setup is pending, existing recovery access and the demo remain available. Legacy offices retain their separate ingest, viewer and recovery keys. Viewer cookies are HttpOnly, SameSite=Strict, and Secure on the hosted Worker. WebSockets use the viewer cookie rather than exposing a secret in their URL. Configure the connection file from the hosted app, not the local demo URL. No third-party model API key is required.
 
 To exercise the real Worker locally:
 
 ```sh
 npm run build
+npx wrangler d1 migrations apply AUTH_DB --local
 npx wrangler dev --port 8788
 ```
 

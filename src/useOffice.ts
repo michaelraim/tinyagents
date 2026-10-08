@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
 import { createDemo, nextDemoEvent, growDemo } from './demo';
 import type { PublicOffice } from '../shared/public-office';
+import { useAccount } from './AccountContext';
 const initialVisit = () => new URLSearchParams(location.search).get('visit') ?? '';
 function visitUrl(id = '', path = '/office') { const url = new URL(location.href); url.pathname=path; id ? url.searchParams.set('visit', id) : url.searchParams.delete('visit'); history.pushState({}, '', url); }
 function saved(key: string) { try { return localStorage.getItem(key) ?? ''; } catch { return ''; } }
 function remember(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Private browsing may disable storage. */ } }
 export function useOffice() {
+  const account = useAccount();
   const [officeId, setOfficeId] = useState(() => saved('sidequest.office'));
   const [visitId, setVisitId] = useState(initialVisit);
   const [mode, setMode] = useState<'demo' | 'live' | 'visit'>(() => initialVisit() ? 'visit' : location.pathname==='/demo' ? 'demo' : 'live');
@@ -17,6 +19,11 @@ export function useOffice() {
   const [paused, setPaused] = useState(false);
   const [now, setNow] = useState(Date.now);
   const tick = useRef(0);
+  useEffect(() => {
+    if (account.loading || !account.user) return;
+    setOfficeId(account.officeId ?? '');
+    remember('sidequest.office', account.officeId ?? '');
+  }, [account.loading, account.user, account.officeId]);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   useEffect(() => {
     if (mode !== 'demo' || paused) return;
@@ -24,8 +31,8 @@ export function useOffice() {
     return () => clearInterval(id);
   }, [mode, paused]);
   useEffect(() => {
-    const id = mode === 'visit' ? visitId : officeId;
-    if (mode === 'demo' || !id) return;
+    const id = mode === 'visit' ? visitId : account.user ? account.officeId : officeId;
+    if (mode === 'demo' || !id || (mode === 'live' && account.loading)) return;
     let stopped = false, timer: ReturnType<typeof setTimeout>, socket: WebSocket | undefined, retries = 0;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let pongAt = Date.now();
@@ -64,6 +71,7 @@ export function useOffice() {
           if (e.data === 'pong') return;
           try {
             const message = JSON.parse(e.data);
+            if (message.type === 'session_ended') { stopped = true; clearInterval(heartbeat); setOffice(emptyOffice()); setPublicView(undefined); setConnection('Sign in · Connect agents'); socket?.close(); return; }
             if (message.type === 'sharing_changed' && mode === 'visit') { setOffice(emptyOffice()); setPublicView(undefined); socket?.close(); return; }
             if (message.type === 'snapshot') { setOffice(message.office as OfficeState); if (mode === 'visit') setPublicView(message); }
           } catch { setConnection('Unreadable update'); }
@@ -74,7 +82,7 @@ export function useOffice() {
     };
     void connect();
     return () => { stopped = true; controller.abort(); clearTimeout(timer); clearInterval(heartbeat); socket?.close(); };
-  }, [mode, officeId, visitId, sessionEpoch]);
+  }, [mode, officeId, visitId, sessionEpoch, account.loading, account.user, account.officeId]);
   const enterLive = useCallback((id: string) => {
     visitUrl(); setVisitId(''); setPublicView(undefined);
     setOffice(emptyOffice()); setOfficeId(id); remember('sidequest.office', id); remember('sidequest.mode', 'live');

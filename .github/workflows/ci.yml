@@ -51,7 +51,9 @@ jobs:
         if: steps.latest.outputs.current == 'true'
       - name: Deploy to Cloudflare
         if: steps.latest.outputs.current == 'true'
-        run: npx wrangler deploy --var BUILD_SHA:$GITHUB_SHA
+        run: |
+          npx wrangler d1 migrations apply AUTH_DB --remote
+          npx wrangler deploy --var BUILD_SHA:$GITHUB_SHA
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

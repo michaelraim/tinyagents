@@ -7,7 +7,9 @@ for (let attempt = 0; attempt < 8; attempt++) {
     const healthResponse = await fetch(base + '/api/health', { signal: AbortSignal.timeout(10000) });
     assert.equal(healthResponse.status, 200);
     const health = await healthResponse.json();
-    assert.equal(health.publicSignup, true); assert.equal(health.registration, true);
+    assert.ok(health.publicSignup || health.providers?.github || health.providers?.gitlab); assert.equal(health.registration, true);
+    const account = await fetch(base + '/api/account').then(r => r.json());
+    assert.equal(account.user, null); assert.equal(account.officeId, null);
     if (expected) assert.equal(health.build, expected);
     for (const path of ['/', '/setup.html', '/privacy.html', '/plugins/codex.zip', '/plugins/claude.zip']) {
       const response = await fetch(base + path, { signal: AbortSignal.timeout(10000) }); assert.equal(response.status, 200, path);

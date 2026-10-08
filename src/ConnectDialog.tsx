@@ -1,112 +1,86 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Download, X } from 'lucide-react';
+import { ArrowRight, Download, Github, Gitlab, LogOut, X } from 'lucide-react';
+import { useAccount, accountRequest } from './AccountContext';
+import LegacyConnectDialog from './LegacyConnectDialog';
+import BrandWordmark from './BrandWordmark';
 import { localTimeZone } from '../shared/clock';
-type Keys = { officeId: string; ingestKey: string; viewerKey: string; ownerKey: string };
-type Health = { publicSignup: boolean; storage: string; registration: boolean };
-function savedOffice() { try { return localStorage.getItem('sidequest.office') ?? ''; } catch { return ''; } }
-export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTab }: { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void; initialTab?: 'new'|'existing' }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [keys, setKeys] = useState<Keys>();
-  const [tab, setTab] = useState<'new' | 'existing' | 'manage'>(() => initialTab ?? (savedOffice() ? 'existing' : 'new'));
-  const [health, setHealth] = useState<Health>();
-  const [invite, setInvite] = useState(''), [officeId, setOfficeId] = useState(savedOffice), [viewerKey, setViewerKey] = useState(''), [ownerKey, setOwnerKey] = useState('');
-  const [confirmation, setConfirmation] = useState(''), [savedRecovery, setSavedRecovery] = useState(false);
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+type Props = { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void; initialTab?: 'new' | 'existing' };
+type Connection = { id: string; name: string; createdAt: number };
+export default function ConnectDialog(props: Props) {
+  const account = useAccount(), dialog = useRef<HTMLDialogElement>(null);
+  const [legacy, setLegacy] = useState(false), [busy, setBusy] = useState(false);
+  const [error, setError] = useState(() => new URLSearchParams(location.search).has('error') || new URLSearchParams(location.search).has('auth_error') ? 'Sign-in did not finish. Try again with your original provider. You can link another provider after signing in.' : '');
+  const [name, setName] = useState('My computer'), [confirmation, setConfirmation] = useState('');
+  const [connections, setConnections] = useState<Connection[]>([]), [linked, setLinked] = useState<string[]>([]);
+  const [download, setDownload] = useState<{officeId: string; ingestKey: string}>();
+  useEffect(() => { if (!legacy) dialog.current?.showModal(); }, [legacy]);
   useEffect(() => {
-    dialog.current?.showModal();
-    const controller = new AbortController();
-    void fetch('/api/health', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]) })
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(setHealth)
-      .catch(() => { if (!controller.signal.aborted) setError('The office service is unavailable. Close this window and try again shortly.'); });
-    return () => controller.abort();
+    const url = new URL(location.href);
+    for (const key of ['welcome', 'auth_error', 'error', 'error_description']) url.searchParams.delete(key);
+    history.replaceState({}, '', url);
   }, []);
-  function close() {
-    if (keys && !savedRecovery) { setError('Save your recovery file first. It is the only way to recover or delete your office.'); return; }
-    onClose();
+  useEffect(() => {
+    if (!account.user) return;
+    const controller = new AbortController();
+    void fetch('/api/auth/list-accounts', { signal: controller.signal }).then(r => { if (!r.ok) throw Error(); return r.json(); }).then(rows => setLinked(rows.map((row: {providerId: string}) => row.providerId))).catch(() => {});
+    if (account.officeId) void fetch(`/api/connections?office=${account.officeId}`, { signal: controller.signal }).then(r => { if (!r.ok) throw Error(); return r.json(); }).then(setConnections).catch(() => {});
+    return () => controller.abort();
+  }, [account.user, account.officeId]);
+  async function run(action: () => Promise<void>) { setBusy(true); setError(''); try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); } finally { setBusy(false); } }
+  async function signIn(provider: 'github' | 'gitlab', link = false) {
+    await run(async () => {
+      const result = await accountRequest(`/api/auth/${link ? 'link-social' : 'sign-in/social'}`, { provider, callbackURL: '/office?welcome=1', errorCallbackURL: '/office?auth_error=1' });
+      if (!result.url) throw Error('This sign-in provider is not ready yet. Please try again later.');
+      location.assign(result.url);
+    });
   }
-  async function connect() {
-    setBusy(true); setError('');
-    try {
-      const response = await fetch(tab === 'new' ? '/api/offices' : '/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tab === 'new' ? { invite, timeZone:localTimeZone() } : { officeId: officeId.trim(), viewerKey: viewerKey.trim() }), signal: AbortSignal.timeout(15000) });
-      const result = await response.json().catch(() => ({ error: 'The office service is unavailable. Try again shortly.' }));
-      if (!response.ok) throw new Error(result.error || 'Could not connect. Check your office key.');
-      if (tab === 'new') { setKeys(result); setSavedRecovery(false); onConnect(result.officeId); }
-      else { onConnect(officeId.trim()); onClose(); }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not reach the office.'); }
-    finally { setBusy(false); }
-  }
-  async function manage(remove: boolean) {
-    if (remove && confirmation !== 'DELETE') return;
-    setBusy(true); setError('');
-    try {
-      const response = await fetch(`/api/${remove ? 'office' : 'keys'}?office=${encodeURIComponent(officeId.trim())}`, {
-        method: remove ? 'DELETE' : 'POST', headers: { Authorization: `Bearer ${ownerKey.trim()}` }, signal: AbortSignal.timeout(15000),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Could not update your office.');
-      if (remove) { onDeleted(officeId.trim()); onClose(); }
-      else { setKeys(result); setSavedRecovery(false); onConnect(result.officeId); }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not reach the office.'); }
-    finally { setBusy(false); }
-  }
-  function downloadConfig(recovery = false) {
-    if (!keys) return;
-    const content = JSON.stringify(recovery
-      ? { url: location.origin, officeId: keys.officeId, viewerKey: keys.viewerKey, ownerKey: keys.ownerKey }
-      : { endpoint: `${location.origin}/api/events`, officeId: keys.officeId, ingestKey: keys.ingestKey, projectName: '', projectId: '', theme: 'studio' }, null, 2);
-    const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' })); link.download = recovery ? 'tinyagents.recovery.json' : 'tinyagents.config.json'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    if (recovery) { setSavedRecovery(true); setError(''); }
-  }
-  async function importRecovery(file?: File) {
+  async function create() { await run(async () => { const result = await accountRequest('/api/account/office', { timeZone: localTimeZone() }); await account.refresh(); props.onConnect(result.officeId); }); }
+  async function claim(file?: File) {
     if (!file) return;
-    try {
-      if (file.size > 16384) throw new Error();
+    await run(async () => {
+      if (file.size > 16384) throw Error('Choose your original office recovery JSON file.');
       const data = JSON.parse(await file.text());
-      if (typeof data.officeId !== 'string' || typeof data.viewerKey !== 'string') throw new Error();
-      if (data.url && data.url !== location.origin) { setError('This recovery file belongs to a different website. Open the URL written in that file.'); return; }
-      setOfficeId(data.officeId); setViewerKey(data.viewerKey); setOwnerKey(typeof data.ownerKey === 'string' ? data.ownerKey : ''); setError('');
-    } catch { setError('Choose the recovery JSON file downloaded when you created your office.'); }
+      if (data.url !== location.origin || typeof data.ownerKey !== 'string') throw Error('Choose the owner recovery file for this website.');
+      const result = await accountRequest('/api/account/office', { officeId: data.officeId, ownerKey: data.ownerKey });
+      await account.refresh(); props.onConnect(result.officeId);
+    });
   }
-  const needsInvite = health && !health.publicSignup && health.storage !== 'local';
-  return <dialog ref={dialog} className="connect-dialog" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
-    <button className="icon-button close-dialog" onClick={close} aria-label="Close connection setup"><X size={18} /></button>
-    <div className="dialog-icon"><img src="/favicon.svg" alt="tinyAGENTS" /></div>
-    <p className="eyebrow">MAKE YOURSELF AT HOME</p><h2>Bring your agents in.</h2>
-    {!keys ? <>
-      {tab==='new'&&<p className="muted">☀️ Office time zone: {localTimeZone().replaceAll('_',' ')}. Day and night will follow this clock.</p>}
-      <p className="muted">Anyone can have a little office. Your office starts private. Connect Codex, Claude Code, or both.</p>
-      <div className="segmented">
-        <button className={tab === 'new' ? 'active' : ''} onClick={() => { setTab('new'); setError(''); }}>New office</button>
-        <button className={tab === 'existing' ? 'active' : ''} onClick={() => { setTab('existing'); setError(''); }}>Open office</button>
-        <button className={tab === 'manage' ? 'active' : ''} onClick={() => { setTab('manage'); setError(''); }}>Manage</button>
-      </div>
-      {tab === 'manage' ? <>
-        <p className="muted">Use your recovery file to replace keys or delete your office. A viewer key cannot make these changes.</p>
-        <label>Recovery file<input type="file" accept=".json,application/json" onChange={e => void importRecovery(e.target.files?.[0])} /></label>
-        <label>Office ID<input value={officeId} onChange={e => setOfficeId(e.target.value)} /></label>
-        <label>Recovery key<input value={ownerKey} onChange={e => setOwnerKey(e.target.value)} type="password" autoComplete="off" /></label>
-        <p className="muted">Replacing keys stops all old connections. Download the new files and pair your coding clients again.</p>
-        <button className="secondary full" disabled={busy || !officeId || !ownerKey} onClick={() => void manage(false)}>Replace all keys</button>
-        <details className="delete-office"><summary>Delete this office</summary><p>This permanently removes its activity and keys. It does not change your coding projects.</p><label>Type DELETE to confirm<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" /></label><button className="secondary full" disabled={busy || !officeId || !ownerKey || confirmation !== 'DELETE'} onClick={() => void manage(true)}>Delete office permanently</button></details>
-        {error && <p className="form-error" role="alert">{error}</p>}
-      </> : <form onSubmit={e => { e.preventDefault(); void connect(); }}>
-        {tab === 'new' ? needsInvite ? <label>Invite code<input value={invite} onChange={e => setInvite(e.target.value)} placeholder="Enter your invite" required type="password" autoComplete="off" /></label> : <p className="muted">No invite or coding account password needed. Save your recovery file to keep access.</p> : <>
-          <label>Recovery file <span className="muted">· fill the fields for me</span><input type="file" accept=".json,application/json" onChange={e => void importRecovery(e.target.files?.[0])} /></label>
-          <label>Office ID<input value={officeId} onChange={e => setOfficeId(e.target.value)} required /></label>
-          <label>Viewer or recovery key<input value={viewerKey} onChange={e => setViewerKey(e.target.value)} type="password" required autoComplete="off" /></label>
-        </>}
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary full" disabled={busy || (tab === 'new' && (!health || !health.registration))}>{busy ? 'Making room…' : tab === 'new' ? 'Create my office' : 'Open my office'}<ArrowRight size={16} /></button>
-      </form>}
-      <div className="privacy-note"><span>⌁</span><p>Only activity metadata leaves your machine. Prompts, source code, command arguments, and tool output stay local.</p></div>
+  function saveConfig(keys = download) {
+    if (!keys) return;
+    const content = { endpoint: `${location.origin}/api/events`, officeId: keys.officeId, ingestKey: keys.ingestKey, projectName: '', projectId: '', theme: 'studio' };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'tinyagents.config.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function pair() { await run(async () => {
+    const keys = await accountRequest(`/api/connections?office=${account.officeId}`, { name }); setDownload(keys); saveConfig(keys);
+    const response = await fetch(`/api/connections?office=${account.officeId}`); if (response.ok) setConnections(await response.json());
+  }); }
+  async function signOut(remove = false) { await run(async () => {
+    await accountRequest(remove ? '/api/account' : '/api/auth/sign-out', undefined, remove ? 'DELETE' : 'POST');
+    try { localStorage.removeItem('sidequest.office'); } catch { /* Cookies remain authoritative. */ }
+    location.assign('/');
+  }); }
+  if (legacy) return <LegacyConnectDialog {...props} initialTab={account.local ? props.initialTab : 'existing'} />;
+  return <dialog className="connect-dialog account-dialog" ref={dialog} onCancel={e => { e.preventDefault(); props.onClose(); }} onClick={e => { if (e.target === dialog.current) props.onClose(); }}>
+    <button className="icon-button close-dialog" onClick={props.onClose} aria-label="Close account"><X size={18}/></button>
+    <div className="account-welcome"><img src="/favicon.svg" alt=""/><BrandWordmark/><span>YOUR CREW. YOUR LITTLE CORNER OF THE INTERNET.</span></div>
+    {account.loading ? <p role="status">Finding your desk…</p> : account.unavailable ? <><h2>We couldn’t reach reception.</h2><p>Try again in a moment.</p><button className="primary full" onClick={() => void account.refresh()}>Try again</button></> : !account.user ? <>
+      <h2>Your office is one sign-in away.</h2><p className="muted">Bring your GitHub or GitLab account. We’ll keep your office ready whenever you come back.</p>
+      <div className="social-logins">{(['github', 'gitlab'] as const).map(provider => <button key={provider} className={`social-login ${provider}`} disabled={busy || !account.providers[provider]} onClick={() => void signIn(provider)}>{provider === 'github' ? <Github size={22}/> : <Gitlab size={22}/>}<span>Continue with {provider === 'github' ? 'GitHub' : 'GitLab'}</span><ArrowRight size={18}/>{!account.providers[provider] && <small>Coming online soon</small>}</button>)}</div>
+      <p className="account-fine">Just your profile and email. No access to your repositories.</p>
+      {!account.providers.github && !account.providers.gitlab && <p className="account-notice">{account.local ? 'This local observer bridge uses development keys. Social login runs on the Cloudflare Worker.' : 'Social sign-in is being connected. You can explore the demo or open an existing office below.'}</p>}
+      <button className="text-button" onClick={() => setLegacy(true)}>{account.local ? 'Local bridge setup / existing recovery file' : 'Already have an office recovery file?'}</button>
     </> : <>
-      <p className="muted">Your office is ready. Save both files, then follow the short setup guide.</p>
-      <div className="setup-step"><b>1</b><div><strong>Save your recovery file</strong><p>Keep this private. It opens your office and lets you replace keys or delete it. There is no email reset.</p><button className="secondary" onClick={() => downloadConfig(true)}><Download size={15} /> {savedRecovery ? 'Recovery file saved ✓' : 'Recovery file'}</button></div></div>
-      <div className="setup-step"><b>2</b><div><strong>Pair your computer</strong><p>Use this file with the setup command in the guide. Codex and Claude share the same connection.</p><button className="secondary" onClick={() => downloadConfig()}><Download size={15} /> Connection file</button></div></div>
-      <div className="setup-step"><b>3</b><div><strong>Add the observer</strong><p>The guide has the install commands for both clients. Prefer a ZIP? Each one includes instructions.</p><div className="button-row"><a className="secondary" href="/plugins/codex.zip" download><Download size={14} /> Codex</a><a className="secondary" href="/plugins/claude.zip" download><Download size={14} /> Claude Code</a></div></div></div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary full" disabled={!savedRecovery} onClick={onClose}>Step into my office <ArrowRight size={16} /></button>
+      <p className="eyebrow">WELCOME BACK, {account.user.name}</p><h2>{account.officeId ? 'The whole crew, connected.' : 'Let’s find your office.'}</h2>
+      {!account.officeId ? <><p className="muted">Start a private office, or bring in the one you already made.</p><button className="primary full" disabled={busy} onClick={() => void create()}>Create my office <ArrowRight size={16}/></button><p className="account-fine">☀️ Your office clock: {localTimeZone().replaceAll('_', ' ')}</p><details className="account-details"><summary>I already have an office</summary><p>Load its owner recovery file once. Its people, history and connected coding clients stay exactly where they are. Future sign-ins use this account.</p><label>Original recovery file<input disabled={busy} type="file" accept="application/json,.json" onChange={e => void claim(e.target.files?.[0])}/></label></details></> : <>
+        <p className="muted">One connection works with both Codex and Claude Code. Add a connection for each computer, or use the same file for both clients.</p>
+        <div className="account-pair"><label>Computer name<input maxLength={60} value={name} onChange={e => setName(e.target.value)}/></label><button className="secondary full" disabled={busy || !name.trim()} onClick={() => void pair()}><Download size={16}/> Download connection file</button>{download && <><p className="account-fine" role="status">Connection created. Pair your computer using the setup guide.</p><button className="text-button" onClick={() => saveConfig()}>Download that file again</button></>}<a href="/setup.html" target="_blank" rel="noreferrer">Open the short setup guide ↗</a></div>
+        <button className="primary full" disabled={busy} onClick={() => { props.onConnect(account.officeId!); props.onClose(); }}>Step into my office <ArrowRight size={16}/></button>
+        {!!connections.length && <details className="account-details"><summary>Connected computers ({connections.length})</summary><p>Removing a connection stops reports using that file. Existing connections from before social login keep working.</p>{connections.map(c => <div className="account-connection" key={c.id}><span>{c.name}</span><button disabled={busy} onClick={() => void run(async () => { await accountRequest(`/api/connections?office=${account.officeId}&id=${c.id}`, undefined, 'DELETE'); setConnections(v => v.filter(row => row.id !== c.id)); })}>Remove</button></div>)}</details>}
+      </>}
+      <details className="account-details"><summary>Sign-in & account</summary><p>{account.user.email}</p>{(['github', 'gitlab'] as const).map(provider => <button className="secondary full" key={provider} disabled={busy || linked.includes(provider) || !account.providers[provider]} onClick={() => void signIn(provider, true)}>{linked.includes(provider) ? '✓ ' : '＋ '}{provider === 'github' ? 'GitHub' : 'GitLab'}{linked.includes(provider) ? ' connected' : ' — add another way to sign in'}</button>)}<p>Link the other provider here to use either login for the same office.</p><button className="secondary" disabled={busy} onClick={() => void signOut()}><LogOut size={15}/> Sign out</button><details className="delete-office"><summary>Delete my account and office</summary><p>This permanently removes your account, office, history and all connection keys. Your local coding projects stay on your computer.</p><label>Type DELETE<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off"/></label><button className="secondary full" disabled={busy || confirmation !== 'DELETE'} onClick={() => void signOut(true)}>Delete permanently</button></details></details>
     </>}
-    <p className="muted"><a href="/setup.html" target="_blank" rel="noreferrer">Simple setup guide ↗</a> · <a href="/privacy.html" target="_blank" rel="noreferrer">What we store ↗</a></p>
+    {busy && <p role="status">One moment…</p>}{error && <p className="form-error" role="alert">{error}</p>}
+    <p className="account-fine"><a href="/privacy.html" target="_blank" rel="noreferrer">What we store ↗</a> · Your office starts private.</p>
   </dialog>;
 }
