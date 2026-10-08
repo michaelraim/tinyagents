@@ -51,6 +51,7 @@ export default {
       return env.OFFICES.get(env.OFFICES.idFromName(officeId)).fetch(request);
     } catch (error) {
       if (error instanceof SyntaxError || (error instanceof Error && /body/i.test(error.message))) return json({ error: 'Invalid or oversized request' }, 400);
+      console.error('[DEBUG-worker-rpc]', error instanceof Error ? `${error.name}: ${error.message}`.replace(/[a-f0-9]{64}/g, '[redacted]') : 'Unknown error');
       return json({ error: 'The office is temporarily unavailable' }, 500);
     }
   },
