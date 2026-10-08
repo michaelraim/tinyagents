@@ -1,6 +1,8 @@
 # Tinyagents: what is left to do
 
-Website: **https://tinyagents.michael-325.workers.dev**
+Homepage: **https://tinyagents.michael-325.workers.dev**
+
+Your workspace: **https://tinyagents.michael-325.workers.dev/office** · Demo: **https://tinyagents.michael-325.workers.dev/demo**
 
 The website is open to everyone. Anyone can create an office without an invite. Each office stays private until its owner opens a public visitor link.
 
@@ -20,7 +22,7 @@ What is left for you:
 
 1. Restart Codex and Claude Code.
 2. Check **/hooks** in each client. Enable **sidequest-office** and review/trust its hooks when asked.
-3. Start a new task in a project. Open the website to watch its agent appear.
+3. Start a new task in a project. Open **/office** to watch its agent appear. The homepage is now an introduction, not your workspace.
 4. Back up `%USERPROFILE%\.sidequest\recovery.json` somewhere private. You need it to open this office in another browser, replace keys, or delete the office.
 
 The pairing file is `%USERPROFILE%\.sidequest\config.json`. Both clients use it. Do not upload either file to GitHub or share it publicly.
@@ -29,7 +31,7 @@ The observer packages were tested against the live server. Your first real task 
 
 ## For everyone else, or another computer
 
-1. Open the website and click **Connect agents → New office**.
+1. Open the website and click **Get your office**.
 2. Save the recovery and connection files.
 3. Follow the [short connection guide](https://tinyagents.michael-325.workers.dev/setup.html). It has copyable commands for Windows, macOS, Linux, Codex and Claude Code.
 
@@ -39,6 +41,24 @@ You need Node.js 22.18 or newer on the computer where the agents run. If an agen
 
 You do not need to give the website an OpenAI or Anthropic API key.
 
+## Your clock and the growing floor plan
+
+New offices save the time zone of the browser that creates them. Older offices pick up the first connected observer's time zone, unless the owner has already set one. Visitors see the owner's local time. A second harness cannot move an established office clock.
+
+To change it: **Office settings → Office clock → Load owner recovery file → Use my current time zone → Save office clock**. You can also type a zone such as `Asia/Jerusalem` or `America/New_York`. No GPS permission is needed. The clock includes daylight-saving changes. Lighting follows a gentle daily schedule, not seasonal astronomical sunrise times. The clock button cycles through night/day previews and back to the local clock.
+
+Rooms, room sizes, shared-space sizes, placement and connecting paths are generated from the actual teams. Sessions grow their own suites; beyond twelve desks, a session gets an annex. Rooms belonging to the same project are encouraged to stay near one another. The layout can reflow as teams grow. It is not a saved building blueprint or a set of fixed project slots.
+
+Try **+ Project**, **+ Session**, and **+ Subagent** in the demo. **Reset demo** restores the sample crew. Live offices only grow from real observer events.
+
+## Conversations and little feelings
+
+Small 3D bubbles anchored above each character show its observed state and a playful mood. Project names are painted on signboards mounted to entrance posts. Both move with the scene, not with a delayed screen overlay. Select the character for the details. A mood is an illustration, not an inference about a model's inner feelings.
+
+The updated observers report subagent assignments and returns. Recognized direct-message tools can also report a hashed recipient ID. When both characters can be identified, they acknowledge each other at their desks or gather if both are between tasks. Unknown recipients and unsupported hook paths produce no invented conversation. Raw message text is never uploaded. These handoff scenes use the private activity stream; public visitors do not receive that history.
+
+Coffee chats, hallway hellos, rubber-duck clubs and arcade rivalries also happen between resting characters. These are clearly labeled break scenes. They never cause real agents to send messages. Restart the clients after updating to observer **0.5.0** to get the new metadata.
+
 ## Share your office and visit friends
 
 1. Open **Friends → Share my office**.
@@ -47,7 +67,7 @@ You do not need to give the website an OpenAI or Anthropic API key.
 4. Click **Open visitor link**, then **Copy link**. Anyone with that link can watch without an account.
 5. To stop sharing, return here and click **Close visitor link**.
 
-Your task text, tool details, source code, paths and private activity history are excluded from the visitor view. A public link still reveals character names, harnesses, hierarchy, generic work states and room themes. Already viewed information cannot be taken back.
+Your task text, tool details, source code, paths and private activity history are excluded from the visitor view. A public link still reveals character names, harnesses, hierarchy, generic work states, room themes and the office time zone. Already viewed information cannot be taken back.
 
 To follow someone, paste their public link into **Friends → Add friend**. Click **Visit** for their full office. Check **In my world** and **Show my neighborhood** to bring up to three offices into your view, with up to 24 characters from each.
 

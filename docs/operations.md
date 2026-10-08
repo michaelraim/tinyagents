@@ -63,6 +63,7 @@ For a temporary signup pause, change `PUBLIC_SIGNUP` to `false`. Without `REGIST
 | GET / POST | /api/share?office=ID | Recovery bearer key |
 | GET | /api/public?office=ID | None; owner must enable sharing |
 | GET | /api/public/stream?office=ID | None; sharing enabled, WebSocket upgrade |
+| POST | /api/clock?office=ID | Recovery bearer key; JSON `{ "timeZone": "Asia/Jerusalem" }` |
 | POST | /api/keys?office=ID | Recovery bearer key |
 | DELETE | /api/office?office=ID | Recovery bearer key |
 
@@ -75,6 +76,14 @@ Sharing is opt-in and stored with the office. Public payloads are built from an 
 Friends are browser-local bookmarks, not mutual friend accounts. Up to three published offices can join a personal neighborhood, each capped at 24 characters. Visitors refresh every 12 seconds, and failed/closed links remove their cast. Full office visits stream all retained characters. IDs are namespaced per office before layout, collision and hierarchy calculations. Social gathering only changes the local animation destination of idle/done agents; observed work states and real agent instructions remain untouched. Shared antics are not synchronized between browsers.
 
 Project identities use a locally normalized Git origin fingerprint, falling back to common Git directory or real folder path. Provider and client identity separate simultaneous sessions. Use manual per-folder `projectId` overrides for related repositories. No migration merges previous observer identities; old records remain in bounded state.
+
+## Clock and layout compatibility
+
+`OfficeState.timeZone` is optional for old records. Browser signup supplies it; otherwise the first observer event with a valid IANA zone registers it. Only an owner-authorized `/api/clock` call changes an established zone. The update is stored and broadcast to private and public viewers. Public projection includes the zone, but excludes private collaboration events.
+
+`shared/campus.ts` packs workload-sized rectangles by evaluating the current frontier, balancing compactness and project proximity. It routes and merges circulation tiles outside those rectangles. `shared/layout.ts` supplies furniture, capacities and clearances; the scene and navigation consume the same result. Twelve desks is a per-room capacity policy, not a predefined room-size template. Empty office state has only shared amenities. Large state changes can reflow the campus. Agent states alone do not rebuild its geometry.
+
+The optional event `collaboration` field carries only a kind and hashed target IDs. Message animation requires a unique matching recipient within the same provider/client/office scope; no text parsing or guessed recipient names. The frontend suppresses historical replay on initial connection. Public visits receive no collaboration history. Cosmetic social invitations reserve actual navigation destinations, wait for the other character and yield when work resumes.
 
 ## Limits and monitoring
 

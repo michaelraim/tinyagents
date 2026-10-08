@@ -3,11 +3,11 @@ import type { PublicOffice } from './public-office';
 export type Neighbor = { id: string; view: PublicOffice };
 export const VISITOR_LIMIT = 24;
 export function neighborhood(own: OfficeState, neighbors: Neighbor[]): OfficeState {
-  return { ...own, agents: [...own.agents.map(a => ({ ...a, officeName: 'Your office' })), ...neighbors.slice(0, 3).flatMap(({ id, view }) =>
+  return { ...own, agents: [...own.agents.map(a => ({ ...a, officeName: 'Your office', officeTimeZone: own.timeZone })), ...neighbors.slice(0, 3).flatMap(({ id, view }) =>
     view.office.agents.slice(0, VISITOR_LIMIT).map(a => ({ ...a,
       key: `${id}:${a.key}`, project: { ...a.project, id: `${id}:${a.project.id}` },
       sessionId: `${id}:${a.sessionId}`, agentId: `${id}:${a.agentId}`, parentAgentId: a.parentAgentId ? `${id}:${a.parentAgentId}` : undefined,
-      visitingOfficeId: id, officeName: view.profile.name,
+      visitingOfficeId: id, officeName: view.profile.name, officeTimeZone: view.office.timeZone,
     })))] };
 }
 export function publicLinkId(value: string, origin: string): string {

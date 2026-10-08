@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Download, Plug, X } from 'lucide-react';
+import { localTimeZone } from '../shared/clock';
 type Keys = { officeId: string; ingestKey: string; viewerKey: string; ownerKey: string };
 type Health = { publicSignup: boolean; storage: string; registration: boolean };
 function savedOffice() { try { return localStorage.getItem('sidequest.office') ?? ''; } catch { return ''; } }
-export default function ConnectDialog({ onClose, onConnect, onDeleted }: { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void }) {
+export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTab }: { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void; initialTab?: 'new'|'existing' }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [keys, setKeys] = useState<Keys>();
-  const [tab, setTab] = useState<'new' | 'existing' | 'manage'>(() => savedOffice() ? 'existing' : 'new');
+  const [tab, setTab] = useState<'new' | 'existing' | 'manage'>(() => initialTab ?? (savedOffice() ? 'existing' : 'new'));
   const [health, setHealth] = useState<Health>();
   const [invite, setInvite] = useState(''), [officeId, setOfficeId] = useState(savedOffice), [viewerKey, setViewerKey] = useState(''), [ownerKey, setOwnerKey] = useState('');
   const [confirmation, setConfirmation] = useState(''), [savedRecovery, setSavedRecovery] = useState(false);
@@ -26,7 +27,7 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted }: { onClo
   async function connect() {
     setBusy(true); setError('');
     try {
-      const response = await fetch(tab === 'new' ? '/api/offices' : '/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tab === 'new' ? { invite } : { officeId: officeId.trim(), viewerKey: viewerKey.trim() }), signal: AbortSignal.timeout(15000) });
+      const response = await fetch(tab === 'new' ? '/api/offices' : '/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tab === 'new' ? { invite, timeZone:localTimeZone() } : { officeId: officeId.trim(), viewerKey: viewerKey.trim() }), signal: AbortSignal.timeout(15000) });
       const result = await response.json().catch(() => ({ error: 'The office service is unavailable. Try again shortly.' }));
       if (!response.ok) throw new Error(result.error || 'Could not connect. Check your office key.');
       if (tab === 'new') { setKeys(result); setSavedRecovery(false); onConnect(result.officeId); }
@@ -72,6 +73,7 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted }: { onClo
     <div className="dialog-icon"><Plug size={24} /></div>
     <p className="eyebrow">MAKE YOURSELF AT HOME</p><h2>Bring your agents in.</h2>
     {!keys ? <>
+      {tab==='new'&&<p className="muted">☀️ Office time zone: {localTimeZone().replaceAll('_',' ')}. Day and night will follow this clock.</p>}
       <p className="muted">Anyone can have a little office. Your office starts private. Connect Codex, Claude Code, or both.</p>
       <div className="segmented">
         <button className={tab === 'new' ? 'active' : ''} onClick={() => { setTab('new'); setError(''); }}>New office</button>

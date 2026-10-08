@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import type { OfficeSimulation } from '../../shared/simulation';
-import type { Agent } from '../../shared/protocol';
+import type { Conversation } from '../../shared/collaboration';
 export function ReactionBurst({at,kind,paused}: {at:number;kind:string;paused:boolean}) {
   const ref=useRef<Group>(null),age=useRef(0);
   useEffect(()=>{age.current=0;},[at]);
@@ -35,17 +35,6 @@ function TeamSignal({signal,positions,paused}:{signal:Signal;positions:Map<strin
   return <group ref={ref}>{[0,1,2,3].map(i=><mesh key={i}><octahedronGeometry args={[.14]}/><meshBasicMaterial color={signal.color} transparent opacity={1-i*.15}/></mesh>)}</group>;
 }
 
-export function TeamSignals({agents,positions,paused}:{agents:Map<string,Agent>;positions:Map<string,Vector3>;paused:boolean}) {
-  const previous=useRef(new Map<string,string>()),[signals,setSignals]=useState<Signal[]>([]);
-  useEffect(()=>{
-    const next:Signal[]=[];
-    for(const agent of agents.values()){
-      const old=previous.current.get(agent.key);
-      const parent=agent.parentAgentId?[...agents.values()].find(a=>a.agentId===agent.parentAgentId&&a.provider===agent.provider&&a.instanceId===agent.instanceId&&a.sessionId===agent.sessionId&&a.project.id===agent.project.id)?.key??'':'';
-      if(parent&&agents.has(parent)&&old!==agent.state&&(old||previous.current.size)&&(!old||agent.state==='done'))next.push({id:agent.id,from:agent.state==='done'?agent.key:parent,to:agent.state==='done'?parent:agent.key,color:agent.state==='done'?'#e8d185':'#9bddce'});
-    }
-    previous.current=new Map([...agents.values()].map(a=>[a.key,a.state]));
-    if(next.length)setSignals(current=>[...current,...next].slice(-6));
-  },[agents]);
-  return <>{signals.map(signal=><TeamSignal key={signal.id} signal={signal} positions={positions} paused={paused}/>)}</>;
+export function TeamSignals({conversations,positions,paused}:{conversations:Conversation[];positions:Map<string,Vector3>;paused:boolean}) {
+  return <>{conversations.map(c=><TeamSignal key={c.id} signal={{...c,color:c.kind==='return'?'#e8d185':'#9bddce'}} positions={positions} paused={paused}/>)}</>;
 }

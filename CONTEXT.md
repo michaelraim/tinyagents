@@ -25,3 +25,9 @@ A playful view of observed coding activity, with private offices and optional pu
 **Neighborhood**: A personal view combining one's office with selected public friend offices and common areas.
 
 **Hangout**: A cosmetic social scene involving characters between tasks. It never sends instructions to a real agent or changes observed work state.
+
+**Office clock**: The owner's registered IANA time zone. It drives the office's local time and daily lighting, regardless of the visitor's location.
+
+**Campus plan**: Generated room footprints and walkable connections derived from the current projects, sessions and headcount. It has no predefined project positions.
+
+**Observed conversation**: An explicit delegation, return or direct-message event with a resolvable sender and recipient. It contains no message text. It is distinct from cosmetic break chatter.

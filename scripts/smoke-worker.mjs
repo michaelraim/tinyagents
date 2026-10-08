@@ -37,7 +37,7 @@ try {
   assert.equal(health.publicSignup, true, 'This acceptance run requires open registration');
   if (!health.publicSignup) assert.equal((await post('/api/offices', { invite: 'wrong' })).status, 403);
   assert.equal((await post('/api/offices', { invite }, { Origin: 'https://foreign.example' })).status, 403);
-  const signup = health.publicSignup ? {} : { invite };
+  const signup = {...(health.publicSignup ? {} : { invite }),timeZone:'Asia/Jerusalem'};
   const created = await post('/api/offices', signup); assert.equal(created.status, 201);
   const credentials = await created.json(); createdOffices.push(credentials);
   const { officeId, ingestKey, viewerKey, ownerKey } = credentials;
@@ -64,6 +64,10 @@ try {
   assert.equal((await request('/api/connection', { method: 'POST', headers, body: 'x'.repeat(65537) })).status, 400, 'Buffering must retain the 64 KiB request limit');
   assert.equal((await post('/api/session', { officeId, viewerKey: ingestKey })).status, 401);
   assert.equal((await post('/api/session', { officeId, viewerKey })).status, 200);
+  assert.equal((await (await request(`/api/snapshot?office=${officeId}`,{headers:{Cookie:cookie}})).json()).timeZone,'Asia/Jerusalem');
+  assert.equal((await post(`/api/clock?office=${officeId}`,{timeZone:'Asia/Tokyo'},{Authorization:`Bearer ${viewerKey}`})).status,401);
+  assert.equal((await post(`/api/clock?office=${officeId}`,{timeZone:'invalid/zone'},{Authorization:`Bearer ${ownerKey}`})).status,400);
+  assert.equal((await post(`/api/clock?office=${officeId}`,{timeZone:'Asia/Tokyo'},{Authorization:`Bearer ${ownerKey}`})).status,200);
   const second = await post('/api/offices', signup);
   const secondCredentials = await second.json(); createdOffices.push(secondCredentials);
   const secondId = secondCredentials.officeId;
@@ -72,6 +76,9 @@ try {
   const message = () => once(ws, 'message', { signal: AbortSignal.timeout(10000) });
   const initial = message(); await once(ws, 'open', { signal: AbortSignal.timeout(10000) });
   assert.equal(JSON.parse(String((await initial)[0])).office.agents.length, 0);
+  const clockUpdate=message();
+  assert.equal((await post(`/api/clock?office=${officeId}`,{timeZone:'America/New_York'},{Authorization:`Bearer ${ownerKey}`})).status,200);
+  assert.equal(JSON.parse(String((await clockUpdate)[0])).office.timeZone,'America/New_York');
   const pong = message(); ws.send('ping'); assert.equal(String((await pong)[0]), 'pong');
 
   const config = { endpoint: `${base}/api/events`, officeId, ingestKey, projectName: 'Cloudflare acceptance' };
@@ -92,10 +99,11 @@ try {
   let update = message(); assert.equal((await post('/api/events', { events: [child] }, headers)).status, 200);
   let snapshot = JSON.parse(String((await update)[0])).office;
   assert.equal(snapshot.agents.length, 3);
+  assert.equal(snapshot.timeZone,'America/New_York','Observer machine clocks cannot override the owner clock');
   const parent = snapshot.agents.find(agent => agent.provider === 'codex' && !agent.parentAgentId);
   assert.equal(snapshot.agents.find(agent => agent.parentAgentId).parentAgentId, parent.agentId);
   update = message();
-  assert.equal((await (await post('/api/events', { events: [child] }, headers)).json()).revision, 3);
+  assert.equal((await (await post('/api/events', { events: [child] }, headers)).json()).revision, 5);
   await update;
   assert.equal((await post('/api/events', { events: [{ ...child, id: 'invalid', prompt: 'secret' }] }, headers)).status, 400);
   assert.equal((await post('/api/events', { events: [{ ...child, id: 'future', at: Date.now() + 120000 }] }, headers)).status, 400);
@@ -109,7 +117,7 @@ try {
   update = message(); assert.match(await run('bridge/office.mjs', ['flush'], ''), /Delivered 1 events/); await update;
   snapshot = await (await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: cookie } })).json();
   assert.equal(snapshot.agents.find(agent => agent.provider === 'claude').state, 'done');
-  assert.equal(snapshot.revision, 4);
+  assert.equal(snapshot.revision, 6);
   // Sharing is owner-controlled and exposes an allowlisted, revocable visitor view.
   const publicRoute = `/api/public?office=${officeId}`, shareRoute = `/api/share?office=${officeId}`;
   const sharing = {enabled:true,name:'Acceptance office',bio:'Public fixture',projectNames:false,rooms:{}};
@@ -149,7 +157,7 @@ try {
   assert.equal((await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: cookie } })).status, 401);
   const recovered = await post('/api/session', { officeId, viewerKey: next.ownerKey }); assert.equal(recovered.status, 200);
   const recoveredCookie = recovered.headers.get('set-cookie').split(';')[0];
-  assert.equal((await (await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: recoveredCookie } })).json()).revision, 4);
+  assert.equal((await (await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: recoveredCookie } })).json()).revision, 6);
   assert.equal((await request(`/api/office?office=${officeId}`, { method: 'DELETE', headers: ownerHeaders(ownerKey) })).status, 401);
   assert.equal((await request(`/api/office?office=${officeId}`, { method: 'DELETE', headers: ownerHeaders(next.ownerKey) })).status, 200);
   assert.equal((await request(`/api/snapshot?office=${officeId}`, { headers: { Cookie: recoveredCookie } })).status, 404);

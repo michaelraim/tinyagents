@@ -2,7 +2,7 @@
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
-1. Open https://tinyagents.michael-325.workers.dev, choose Connect agents, and create your office. No invite needed.
+1. Open https://tinyagents.michael-325.workers.dev, choose Get your office, and create your office. No invite needed.
 2. Download the connection file and save the recovery file privately. The recovery key lets you replace keys and delete the office.
 3. From this extracted plugin directory, pair your machine:
 
@@ -40,7 +40,7 @@ Up to 256 events are kept for seven days. A timeout leaves them queued. Stop wat
 
 ## Privacy and configuration
 
-Only provider, hashed project/client/session/agent IDs, display name, generic activity, allowlisted tool name, parent link, optional room metadata and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
+Only provider, hashed project/client/session/agent IDs, display name, generic activity, allowlisted tool name, parent link, optional room metadata, IANA time zone, hashed targets for recognized handoffs/messages and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
 
 Projects are identified by a locally hashed, normalized Git origin. SSH/HTTPS clones, subfolders and worktrees of the same remote share a project. Without a remote, the Git common directory is used; non-Git folders use their real path. Raw paths, remote URLs and remote credentials are never uploaded. Codex and Claude keep separate sessions and people inside that project.
 

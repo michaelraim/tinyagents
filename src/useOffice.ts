@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
-import { createDemo, nextDemoEvent } from './demo';
+import { createDemo, nextDemoEvent, growDemo } from './demo';
 import type { PublicOffice } from '../shared/public-office';
 const initialVisit = () => new URLSearchParams(location.search).get('visit') ?? '';
-function visitUrl(id = '') { const url = new URL(location.href); id ? url.searchParams.set('visit', id) : url.searchParams.delete('visit'); history.pushState({}, '', url); }
+function visitUrl(id = '', path = '/office') { const url = new URL(location.href); url.pathname=path; id ? url.searchParams.set('visit', id) : url.searchParams.delete('visit'); history.pushState({}, '', url); }
 function saved(key: string) { try { return localStorage.getItem(key) ?? ''; } catch { return ''; } }
 function remember(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* Private browsing may disable storage. */ } }
 export function useOffice() {
   const [officeId, setOfficeId] = useState(() => saved('sidequest.office'));
   const [visitId, setVisitId] = useState(initialVisit);
-  const [mode, setMode] = useState<'demo' | 'live' | 'visit'>(() => initialVisit() ? 'visit' : officeId && saved('sidequest.mode') !== 'demo' ? 'live' : 'demo');
+  const [mode, setMode] = useState<'demo' | 'live' | 'visit'>(() => initialVisit() ? 'visit' : location.pathname==='/demo' ? 'demo' : 'live');
   const [office, setOffice] = useState(() => mode !== 'demo' ? emptyOffice() : createDemo());
   const [publicView, setPublicView] = useState<PublicOffice>();
   const [connection, setConnection] = useState(mode !== 'demo' ? 'Connecting…' : 'Demo office');
@@ -80,9 +80,10 @@ export function useOffice() {
     setOffice(emptyOffice()); setOfficeId(id); remember('sidequest.office', id); remember('sidequest.mode', 'live');
     setMode('live'); setPaused(false); setSessionEpoch(value => value + 1);
   }, []);
-  const enterDemo = useCallback(() => { visitUrl(); setVisitId(''); setPublicView(undefined); setOffice(createDemo()); setMode('demo'); remember('sidequest.mode', 'demo'); setConnection('Demo office'); setPaused(false); }, []);
+  const enterDemo = useCallback(() => { visitUrl('', '/demo'); setVisitId(''); setPublicView(undefined); setOffice(createDemo()); setMode('demo'); remember('sidequest.mode', 'demo'); setConnection('Demo office'); setPaused(false); }, []);
   const visit = useCallback((id: string) => { visitUrl(id); setVisitId(id); setMode('visit'); setOffice(emptyOffice()); setPublicView(undefined); setPaused(false); setSessionEpoch(v => v + 1); }, []);
-  useEffect(() => { const back = () => { const id = initialVisit(); setVisitId(id); setMode(id ? 'visit' : officeId ? 'live' : 'demo'); setOffice(id || officeId ? emptyOffice() : createDemo()); setPublicView(undefined); }; window.addEventListener('popstate', back); return () => window.removeEventListener('popstate', back); }, [officeId]);
+  useEffect(() => { const back = () => { const id = initialVisit(); setVisitId(id); const demo=location.pathname==='/demo';setMode(id ? 'visit' : demo ? 'demo':'live'); setOffice(!id && demo ? createDemo():emptyOffice()); setPublicView(undefined); }; window.addEventListener('popstate', back); return () => window.removeEventListener('popstate', back); }, [officeId]);
   const forgetOffice = useCallback(() => { setOfficeId(''); remember('sidequest.office', ''); enterDemo(); }, [enterDemo]);
-  return { office, mode, connection, paused, setPaused, now, enterLive, enterDemo, forgetOffice, officeId, visit, visitId, publicView };
+  const addDemo=useCallback((kind:'project'|'session'|'agent')=>setOffice(current=>growDemo(current,kind)),[]);
+  return { office, mode, connection, paused, setPaused, now, enterLive, enterDemo, forgetOffice, officeId, visit, visitId, publicView, addDemo };
 }

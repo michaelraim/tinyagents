@@ -27,5 +27,5 @@ export function publicOffice(office: OfficeState, settings: ShareSettings): Publ
   }));
   return { profile: { name: settings.name, bio: settings.bio },
     designs: Object.fromEntries(Object.entries(settings.rooms).filter(([id])=>projectIds.includes(id)).map(([id, room]) => [id, { ...room, description: settings.projectNames ? room.description : '' }])),
-    office: { ...emptyOffice(), agents, revision: office.revision } };
+    office: { ...emptyOffice(), timeZone: office.timeZone, agents, revision: office.revision } };
 }

@@ -1,18 +1,22 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, OrbitControls } from '@react-three/drei';
-import { Group, MathUtils, MeshStandardMaterial, Vector3, type OrthographicCamera } from 'three';
+import { OrbitControls } from '@react-three/drei';
+import { WorldHtml as Html } from './WorldHtml';
+import { Color, Group, MathUtils, MeshStandardMaterial, Vector3, type OrthographicCamera } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Box, Plant, CoffeeSteam } from './Props';
-import { Sign, Tree, Whiteboard, InteractiveProp, type WorldAction } from './WorldProps';
+import { Sign, Tree, Whiteboard, Fountain, InteractiveProp, type WorldAction } from './WorldProps';
 import { VoxelModel } from './VoxelModel';
 import { Character, type Reaction, type AgentPositions } from './Character';
 import { TeamSignals } from './Effects';
-import { effectiveState, summarizeAgents, teamMeta, stateMeta, agentRole, type Agent, type AgentState, type Project } from '../../shared/protocol';
+import { useConversations } from './Collaboration';
+import { effectiveState, summarizeAgents, teamMeta, stateMeta, agentRole, type Agent, type AgentState, type OfficeEvent, type Project } from '../../shared/protocol';
 import { officePlan, type Room, type Seat, type Rect, type OfficePlan } from '../../shared/layout';
 import { OfficeSimulation } from '../../shared/simulation';
 import { verticalById, propById, suggestedVertical } from '../../shared/verticals.mjs';
 import { projectColor } from '../designs';
+import { ProjectSign } from './GameLabels';
+import { officeClock } from '../../shared/clock';
 import { cameraDistance, cameraFar } from '../../shared/camera';
 import { hangouts, type Hangout } from '../../shared/neighborhood';
 
@@ -95,12 +99,16 @@ function Workstation({seat,agent,state,color,simulation,paused}:{seat:Seat;agent
   </group>;
 }
 
-function ProjectRoom({room,design,agents,now,simulation,paused,onFocus,mark}:{room:Room;design?:RoomDesign;agents:Map<string,Agent>;now:number;simulation:OfficeSimulation;paused:boolean;onFocus:()=>void;mark:string}) {
+function ProjectRoom({room,design,agents,now,simulation,paused,onFocus,mark,night}:{room:Room;design?:RoomDesign;agents:Map<string,Agent>;now:number;simulation:OfficeSimulation;paused:boolean;onFocus:()=>void;mark:string;night:boolean}) {
   const vertical=verticalById.get(design?.vertical??room.agents[0]?.project.vertical??suggestedVertical(room.name))??verticalById.get('software')!;
   const props=(design?.props??vertical.props.slice(0,8).map(p=>p.id)).map(id=>propById.get(id)).filter(Boolean);
   const members=room.agents.map(a=>agents.get(a.key)??a),[hover,setHover]=useState('');
+  const localNight=members[0]?.officeTimeZone?officeClock(members[0].officeTimeZone,now).daylight<.4:night;
   return <group>
     <Floor rect={room} color="#e3d7bd" wood/>
+    <mesh position={[room.x,1.4,room.z-room.d/2+.6]}><boxGeometry args={[room.w-1,.07,.8]}/><meshStandardMaterial color={localNight?'#ffcc88':'#ece0ba'} emissive="#ffc780" emissiveIntensity={localNight?2.2:0}/></mesh>
+    {localNight&&room.first&&Number(mark)<=8&&<pointLight position={[room.x,3,room.z-1]} color="#ffd5a0" intensity={14} distance={Math.max(room.w,room.d)} decay={1.5}/>}
+    {room.first&&<ProjectSign name={room.name} subtitle={vertical.name+(members[0]?.officeTimeZone?' · '+officeClock(members[0].officeTimeZone,now).time:'')} mark={mark} color={projectColor(room.projectId)} position={[room.x-room.side*(room.w/2-.5),.15,room.doorZ-1.6]} onClick={onFocus}/>}
     <RoomShell room={room} color={projectColor(room.projectId)} agents={members} now={now} onFocus={onFocus}/>
     <group onClick={e=>{e.stopPropagation();onFocus()}}><Sign text={`${mark}  /  ${room.name.toUpperCase()}`} width={Math.min(room.w-1,8)} height={.65} color={projectColor(room.projectId)} ink="#fff9e3" position={[room.x,.18,room.z+room.d/2-.5]} rotation={[-Math.PI/2,0,0]}/></group>
     {room.seats.map(seat=>{const agent=agents.get(seat.agent.key)??seat.agent;return <Workstation key={agent.key} seat={seat} agent={agent} state={effectiveState(agent,now)} color={vertical.color} simulation={simulation} paused={paused}/>;})}
@@ -121,6 +129,7 @@ function ProjectRoom({room,design,agents,now,simulation,paused,onFocus,mark}:{ro
 function CommonOffice({plan,paused,onAction,pulses}:{plan:OfficePlan;paused:boolean;onAction:(a:WorldAction)=>void;pulses:Partial<Record<WorldAction,number>>}) {
   const {hall,reception:r,lounge:l,meeting:m}=plan;
   return <>
+    {plan.walkways.map((r,i)=><Floor key={i} rect={r} color="#dce1d5"/>)}
     <Floor rect={hall} color="#dce1d5"/><Floor rect={r} color="#dce1d5"/><Floor rect={l} color="#e2cfaa" wood/><Floor rect={m} color="#c5d1c8"/>
     {plan.quiet&&<><Floor rect={plan.quiet} color="#d9d9c8" wood/><group position={[plan.quiet.x,.14,plan.quiet.z]}>
       <Box size={[9.3,2.8,.2]} color="#dfe1d3" position={[0,1.4,-plan.quiet.d/2]}/><Sign text="QUIET CORNER" color="#dfe1d3" ink="#668680" width={5.5} height={.6} position={[0,2.3,-plan.quiet.d/2+.12]}/>
@@ -129,6 +138,15 @@ function CommonOffice({plan,paused,onAction,pulses}:{plan:OfficePlan;paused:bool
     </group></>}
     <Box size={[.18,.02,hall.d-1]} color="#bc936a" position={[0,.15,hall.z]}/>
     {Array.from({length:Math.floor(hall.d/5)},(_,i)=><Sign key={i} text="›" color="#dce1d5" ink="#869c8e" width={.65} height={.65} position={[1.25,.151,hall.z-hall.d/2+3+i*5]} rotation={[-Math.PI/2,0,Math.PI/2]}/>)}
+    <group position={[hall.x,.15,hall.z]}>
+      <Box size={[4,.18,4]} color="#738b75" position={[-hall.w/2+2.7,.06,-hall.d/2+2.7]}/>
+      <Tree position={[-hall.w/2+2.7,.16,-hall.d/2+2.7]} scale={1.05} paused={paused}/>
+      <Box size={[3,.45,.9]} color="#c6ab82" position={[hall.w/2-2,.25,-hall.d/2+1.3]}/>
+      <Plant position={[hall.w/2-1.2,.5,-hall.d/2+3]} scale={1.5}/>
+      <Fountain position={[0,0,0]} paused={paused} onAction={onAction} pulse={pulses.fountain??0}/>
+      <Sign text="THE COMMONS" width={5.5} height={.7} color="#dce1d5" ink="#688476" position={[0,.01,3.3]} rotation={[-Math.PI/2,0,0]}/>
+      {[-1,1].map(side=><group key={side} position={[side*(hall.w/2-.7),0,hall.d/2-1]}><Box size={[.13,3.5,.13]} color="#587267" position={[0,1.75,0]}/><mesh position={[0,3.5,0]}><boxGeometry args={[.48,.5,.48]}/><meshStandardMaterial color="#ffe4ae" emissive="#ffd592" emissiveIntensity={1.5}/></mesh></group>)}
+    </group>
     <group position={[r.x,0,r.z]}>
       <Box size={[5,1.25,1.7]} color="#86a79b" position={[-2.3,.77,1.2]}/><Box size={[5.18,.16,1.9]} color="#ebcfad" position={[-2.3,1.47,1.2]}/>
       <Sign text="SIDEQUEST" color="#86a79b" width={3.7} height={.48} position={[-2.3,.95,2.061]}/>
@@ -156,7 +174,7 @@ function CommonOffice({plan,paused,onAction,pulses}:{plan:OfficePlan;paused:bool
       <Whiteboard position={[0,.15,-4.8]} accent="#e1b470"/><VoxelModel family="books" color="#799eb2" position={[-1,1.4,.3]} scale={.45}/><Plant position={[-1,1.4,-1.5]} scale={.4}/>
       <Sign text="SPACE TO THINK" color="#c5d1c8" ink="#78998b" width={4.4} height={.5} position={[0,.16,4.7]} rotation={[-Math.PI/2,0,0]}/>
     </group>
-    <Box size={[hall.w,.8,.25]} color="#8aa49a" position={[0,.5,hall.z-hall.d/2]}/>
+
     <Sign text="SIDEQUEST  /  STUDIO FLOOR" color="#dce1d5" ink="#758f86" width={4} height={.55} position={[0,.16,hall.z-hall.d/2+1]} rotation={[-Math.PI/2,0,0]}/>
   </>;
 }
@@ -177,11 +195,11 @@ function CameraRig({plan,focus,action,follow,positions}:{plan:OfficePlan;focus:s
     desired.current={target,position:target.clone().add(distant(new Vector3(25,37,36))),zoom};
   },[focus,plan,size.width,size.height]);
   useEffect(()=>{if(!action||!controls.current)return;const cam=camera as OrthographicCamera,target=action.type==='home'?home():controls.current.target.clone(),offset=camera.position.clone().sub(target);if(action.type==='rotate')offset.applyAxisAngle(new Vector3(0,1,0),Math.PI/2);desired.current={target,position:action.type==='home'?target.clone().add(distant(new Vector3(25,37,36))):target.clone().add(distant(offset)),zoom:action.type==='home'?fit():action.type==='in'||action.type==='out'?MathUtils.clamp(cam.zoom*(action.type==='in'?1.25:.8),5,140):cam.zoom};},[action]);
-  useFrame((_,dt)=>{if(follow&&positions.has(follow)){const target=positions.get(follow)!.clone().add(new Vector3(0,.8,0));desired.current={target,position:target.clone().add(distant(new Vector3(12,13,17))),zoom:Math.min(size.width/15,size.height/13)};}if(!desired.current||!controls.current)return;const d=desired.current,blend=1-Math.exp(-dt*4),cam=camera as OrthographicCamera;camera.position.lerp(d.position,blend);controls.current.target.lerp(d.target,blend);cam.zoom=MathUtils.lerp(cam.zoom,d.zoom,blend);cam.updateProjectionMatrix();controls.current.update();if(camera.position.distanceTo(d.position)<.01&&Math.abs(cam.zoom-d.zoom)<.02)desired.current=null;});
+  useFrame((_,dt)=>{if(follow&&positions.has(follow)){const target=positions.get(follow)!.clone().add(new Vector3(0,.8,0));desired.current={target,position:target.clone().add(distant(new Vector3(12,13,17))),zoom:Math.min(size.width/15,size.height/13)};}if(!desired.current||!controls.current)return;const d=desired.current,blend=1-Math.exp(-dt*4),cam=camera as OrthographicCamera;camera.position.lerp(d.position,blend);controls.current.target.lerp(d.target,blend);cam.zoom=MathUtils.lerp(cam.zoom,d.zoom,blend);cam.updateProjectionMatrix();controls.current.update();camera.updateMatrixWorld();if(camera.position.distanceTo(d.position)<.01&&Math.abs(cam.zoom-d.zoom)<.02)desired.current=null;},-1);
   return <OrbitControls ref={controls} makeDefault enableDamping screenSpacePanning={false} minZoom={4} maxZoom={150} minPolarAngle={.2} maxPolarAngle={Math.PI/2.35} onStart={()=>{desired.current=null}}/>;
 }
 
-export default function OfficeScene({projects,selected,onSelect,reaction,now,paused,reducedMotion,focus,action,evening,speed=1,follow=null,designs={},onWorldAction,pulses={},onFocus,hangout,onHangoutResult}:{projects:Project[];selected?:string;onSelect:(a:Agent)=>void;reaction?:Reaction;now:number;paused:boolean;reducedMotion:boolean;focus:string|null;action?:CameraAction;evening:boolean;speed?:number;follow?:string|null;designs?:Designs;onWorldAction:(a:WorldAction)=>void;pulses?:Partial<Record<WorldAction,number>>;onFocus:(id:string)=>void;hangout?:Hangout;onHangoutResult:(text:string)=>void}) {
+export default function OfficeScene({projects,selected,onSelect,reaction,now,paused,reducedMotion,focus,action,evening,daylight=evening?0:1,events=[],speed=1,follow=null,designs={},onWorldAction,pulses={},onFocus,hangout,onHangoutResult}:{projects:Project[];selected?:string;onSelect:(a:Agent)=>void;reaction?:Reaction;now:number;paused:boolean;reducedMotion:boolean;focus:string|null;action?:CameraAction;evening:boolean;daylight?:number;events?:OfficeEvent[];speed?:number;follow?:string|null;designs?:Designs;onWorldAction:(a:WorldAction)=>void;pulses?:Partial<Record<WorldAction,number>>;onFocus:(id:string)=>void;hangout?:Hangout;onHangoutResult:(text:string)=>void}) {
   const signature=projects.map(p=>`${p.id}:${p.name}:${p.agents.map(a=>`${a.key}:${a.parentAgentId??''}`).join(',')}`).join('|');
   const prior=useRef<OfficeSimulation | undefined>(undefined);
   const plan=useMemo(()=>officePlan(projects),[signature]),simulation=useMemo(()=>new OfficeSimulation(plan,prior.current),[plan]);
@@ -203,20 +221,22 @@ export default function OfficeScene({projects,selected,onSelect,reaction,now,pau
     onHangoutResult(count===2?`${hangouts[hangout.kind].icon} ${first.name} + ${second.name}: ${hangouts[hangout.kind].line}`:'The shared area is busy. Try again after the current break.');
   },[hangout?.at]);
   const b=plan.bounds;
+  const {conversations,talks}=useConversations(events,agents,simulation,now,still);
   return <div className="office-canvas"><Canvas shadows="percentage" orthographic camera={{position:[625,925,900],zoom:20,near:.1,far:10000}} dpr={[1,1.6]} gl={{antialias:true,powerPreference:'high-performance'}} onCreated={({gl})=>{gl.domElement.addEventListener('webglcontextlost',()=>setContextLost(true));gl.domElement.addEventListener('webglcontextrestored',()=>setContextLost(false));}}>
-    <color attach="background" args={[evening?'#526a7b':'#b6cbc0']}/>
-    <ambientLight intensity={evening?.4:.7} color={evening?'#bdc9e7':'#fff7e6'}/><hemisphereLight args={['#ecf2f4','#a4a88d',.85]}/>
-    <directionalLight position={[-25,45,25]} intensity={evening?1.1:1.9} color={evening?'#ffcc99':'#ffedd0'} castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-60} shadow-camera-right={60} shadow-camera-top={80} shadow-camera-bottom={-80} shadow-normalBias={.035}/>
-    <mesh position={[b.x,-.66,b.z]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[20000,20000]}/><meshStandardMaterial color={evening?'#405d68':'#a9c0b4'} roughness={1}/></mesh>
+    <color attach="background" args={[new Color('#344b60').lerp(new Color('#b6cbc0'),daylight)]}/>
+    <ambientLight intensity={.45+daylight*.25} color={evening?'#bdc9e7':'#fff7e6'}/><hemisphereLight args={['#ecf2f4','#a4a88d',.5+daylight*.35]}/>
+    <directionalLight position={[-25,45,25]} intensity={.65+daylight*1.25} color={evening?'#ffcc99':'#ffedd0'} castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-60} shadow-camera-right={60} shadow-camera-top={80} shadow-camera-bottom={-80} shadow-normalBias={.035}/>
+    <mesh position={[b.x,-.66,b.z]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[20000,20000]}/><meshStandardMaterial color={new Color('#2c4654').lerp(new Color('#a9c0b4'),daylight)} roughness={1}/></mesh>
     <Suspense fallback={null}>
       <SimulationDriver simulation={simulation} paused={still} speed={speed}/>
-      <Box size={[b.w+5,.13,b.d+5]} color="#9db5aa" position={[b.x,-.55,b.z]}/>
+
+      {evening&&[plan.hall,plan.lounge,plan.meeting].map((r,i)=><pointLight key={i} position={[r.x,4,r.z]} color="#ffe0aa" intensity={9} distance={18} decay={1.5}/>)}
       <CommonOffice plan={plan} paused={still} onAction={onWorldAction} pulses={pulses}/>
-      {plan.rooms.map(room=><ProjectRoom key={room.id} room={room} design={designs[room.projectId]} agents={agents} now={now} simulation={simulation} paused={still} onFocus={()=>onFocus(room.projectId)} mark={String(projects.findIndex(p=>p.id===room.projectId)+1).padStart(2,'0')}/>)}
-      {[...agents.values()].map((agent,i)=><Character key={agent.key} agent={agent} state={effectiveState(agent,now)} index={agent.name.charCodeAt(0)+i} selected={selected===agent.key} onSelect={()=>onSelect(agent)} reaction={reaction?.key===agent.key?reaction:undefined} paused={paused} reducedMotion={reducedMotion} speed={speed} positions={positions} simulation={simulation} projectColor={projectColor(agent.project.id)} projectMark={String(projects.findIndex(p=>p.id===agent.project.id)+1).padStart(2,'0')} role={agentRole(agent,[...agents.values()])} socialLabel={hangout&&socialCast.includes(agent.key)&&now-hangout.at<18000&&['idle','done'].includes(effectiveState(agent,now))?`${hangouts[hangout.kind].icon} ${hangouts[hangout.kind].name}`:undefined}/>)}
-      {!reducedMotion&&<TeamSignals agents={agents} positions={positions} paused={paused}/>}
+      {plan.rooms.map(room=><ProjectRoom key={room.id} room={room} design={designs[room.projectId]} agents={agents} now={now} simulation={simulation} paused={still} night={evening} onFocus={()=>onFocus(room.projectId)} mark={String(projects.findIndex(p=>p.id===room.projectId)+1).padStart(2,'0')}/>)}
+      {[...agents.values()].map((agent,i)=><Character key={agent.key} agent={agent} state={effectiveState(agent,now)} index={agent.name.charCodeAt(0)+i} selected={selected===agent.key} onSelect={()=>onSelect(agent)} reaction={reaction?.key===agent.key?reaction:undefined} paused={paused} reducedMotion={reducedMotion} speed={speed} positions={positions} simulation={simulation} projectColor={projectColor(agent.project.id)} projectMark={String(projects.findIndex(p=>p.id===agent.project.id)+1).padStart(2,'0')} role={agentRole(agent,[...agents.values()])} talkPartner={talks[agent.key]?.partner} socialLabel={hangout&&socialCast.includes(agent.key)&&now-hangout.at<18000&&['idle','done'].includes(effectiveState(agent,now))?`${hangouts[hangout.kind].icon} ${hangouts[hangout.kind].name}`:talks[agent.key]?.label}/>)}
+      {!reducedMotion&&<TeamSignals conversations={conversations} positions={positions} paused={paused}/>}
       {[-1,1].map(side=><group key={side}><Tree position={[b.x+side*(b.w/2+1.8),-.47,b.z-b.d/2+2]} scale={1.25} pink={side<0} paused={still}/><Tree position={[b.x+side*(b.w/2+1.8),-.47,b.z+b.d/2-3]} scale={1.45} paused={still}/></group>)}
-      <Box size={[7,.2,2]} color="#e0d4b9" position={[0,-.16,plan.reception.z+plan.reception.d/2+.9]}/>
+      <Box size={[7,.2,2]} color="#e0d4b9" position={[plan.reception.x,-.16,plan.reception.z+plan.reception.d/2+.9]}/>
     </Suspense>
     <CameraRig plan={plan} focus={focus} action={action} follow={follow} positions={positions}/>
   </Canvas>{contextLost&&<div className="canvas-fallback">The world is reconnecting…</div>}</div>;

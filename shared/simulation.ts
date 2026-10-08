@@ -1,9 +1,10 @@
 import { effectiveState, type Agent, type AgentState } from './protocol';
-import type { OfficePlan, Point, Rect, Seat } from './layout';
+import type { OfficePlan, Point, Seat } from './layout';
 
-const inside = (p: Point, r: Rect) => Math.abs(p.x - r.x) <= r.w / 2 && Math.abs(p.z - r.z) <= r.d / 2;
 export const BODY_RADIUS = .38;
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
+const diagonal=BODY_RADIUS/Math.SQRT2;
+const clearanceSamples=[[0,0],[BODY_RADIUS,0],[-BODY_RADIUS,0],[0,BODY_RADIUS],[0,-BODY_RADIUS],[diagonal,diagonal],[-diagonal,diagonal],[diagonal,-diagonal],[-diagonal,-diagonal]];
 
 /** Configuration-space routing: walls, desks and floor edges include body clearance. */
 export class Navigation {
@@ -20,11 +21,10 @@ export class Navigation {
     for (let i = 0; i < this.open.length; i++) this.open[i] = Number(this.clear(this.point(i)));
   }
   clear(p: Point): boolean {
-    const diagonal=BODY_RADIUS/Math.SQRT2;
-    for (const [dx, dz] of [[0,0],[BODY_RADIUS,0],[-BODY_RADIUS,0],[0,BODY_RADIUS],[0,-BODY_RADIUS],[diagonal,diagonal],[-diagonal,diagonal],[diagonal,-diagonal],[-diagonal,-diagonal]]) {
-      if (!this.plan.floors.some(r => inside({ x: p.x + dx, z: p.z + dz }, r))) return false;
+    for (const [dx, dz] of clearanceSamples) {
+      if (!this.plan.floors.some(r => Math.abs(p.x+dx-r.x)<=r.w/2 && Math.abs(p.z+dz-r.z)<=r.d/2)) return false;
     }
-    return !this.plan.obstacles.some(r => inside(p, { ...r, w: r.w + BODY_RADIUS * 2, d: r.d + BODY_RADIUS * 2 }));
+    return !this.plan.obstacles.some(r => Math.abs(p.x-r.x)<=r.w/2+BODY_RADIUS && Math.abs(p.z-r.z)<=r.d/2+BODY_RADIUS);
   }
   line(a: Point, b: Point): boolean {
     const n = Math.ceil(distance(a, b) / .18);
@@ -89,7 +89,7 @@ export class Navigation {
 }
 
 export type SimBody = Point & { key: string; vx: number; vz: number; angle: number; travel: number; state: AgentState;
-  phase: 'desk' | 'walking' | 'break' | 'away'; home: Seat; path: Point[]; target: 'home' | number; age: number; dwell: number; gait: number; stuck: number; bestDistance:number; progressAge:number };
+  phase: 'desk' | 'walking' | 'break' | 'away'; home: Seat; path: Point[]; target: 'home' | number; age: number; dwell: number; gait: number; stuck: number; bestDistance:number; progressAge:number; rendezvous?:string };
 
 /** One fixed-step crowd simulation. Characters only render these positions. */
 export class OfficeSimulation {
@@ -127,6 +127,7 @@ export class OfficeSimulation {
     for (const key of this.bodies.keys()) if (!present.has(key)) this.bodies.delete(key);
   }
   route(body: SimBody, target: 'home' | number) {
+    if(target==='home')body.rendezvous=undefined;
     const point = target === 'home' ? body.home : this.plan.destinations[target];
     const occupied = [...this.bodies.values()].filter(b=>b!==body && b.phase!=='walking' && b.phase!=='away');
     const path = this.nav.path(body, point, occupied);
@@ -151,7 +152,7 @@ export class OfficeSimulation {
       if(!path.length)return 0;
       reserved.add(slot);invited.push({body,slot,path});
     }
-    for(const {body,slot,path} of invited){body.target=slot;body.path=path;body.phase='walking';body.stuck=0;body.bestDistance=Infinity;body.progressAge=0;body.dwell=0;}
+    for(const {body,slot,path} of invited){body.target=slot;body.path=path;body.phase='walking';body.stuck=0;body.bestDistance=Infinity;body.progressAge=0;body.dwell=0;body.age=0;body.rendezvous=keys.find(key=>key!==body.key);}
     return invited.length;
   }
   private move(body: SimBody, x: number, z: number) {
@@ -175,7 +176,12 @@ export class OfficeSimulation {
         const slot = this.plan.destinations.findIndex((_, k) => !reserved.has(k) && !social.has(k));
         if (slot >= 0 && this.route(body, slot)) reserved.add(slot);
       }
-      if (body.phase === 'break') { body.dwell += dt; if (body.dwell > 12 + i % 7) { this.route(body, 'home'); body.dwell = 0; body.age = -10; } }
+      if (body.phase === 'break') {
+        const companion=body.rendezvous?this.bodies.get(body.rendezvous):undefined;
+        const waitingForCompanion=companion&&companion.rendezvous===body.key&&companion.phase==='walking'&&body.age<100;
+        if(!waitingForCompanion)body.dwell+=dt;
+        if (body.dwell > 12 + i % 7) { this.route(body, 'home'); body.dwell = 0; body.age = -10; }
+      }
       // Do not orbit a corner waypoint while yielding to another pedestrian.
       while (body.path.length > 1 && distance(body, body.path[0]) < .5 && this.nav.line(body, body.path[1]) && bodies.every(b=>b===body||b.phase==='walking'||b.phase==='away'||distance(b,body.path[0])>1.5)) {body.path.shift();body.bestDistance=Infinity;}
       const target = body.path[0]; let tx = 0, tz = 0;
@@ -204,7 +210,8 @@ export class OfficeSimulation {
       this.move(body, body.x + body.vx * dt, body.z + body.vz * dt);
       body.travel = distance(before, body) / dt;
       body.gait += distance(before, body) * 4.6;
-      const angle = body.travel > .12 ? Math.atan2(body.vx, body.vz) : body.phase === 'break' ? Math.PI : body.home.facing;
+      const companion=body.rendezvous?this.bodies.get(body.rendezvous):undefined;
+      const angle = body.travel > .12 ? Math.atan2(body.vx, body.vz) : body.phase === 'break' && companion ? Math.atan2(companion.x-body.x,companion.z-body.z) : body.phase === 'break' ? Math.PI : body.home.facing;
       body.angle += Math.atan2(Math.sin(angle - body.angle), Math.cos(angle - body.angle)) * (1 - Math.exp(-dt * 9));
       body.stuck = target && body.travel < .08 ? body.stuck + dt : 0;
       if (body.stuck > 1.2 || body.progressAge > 2) this.route(body, body.target);

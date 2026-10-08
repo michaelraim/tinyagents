@@ -46,10 +46,10 @@ describe('honest office state', () => {
   });
   it('adds annexes without losing agents', () => {
     let office = emptyOffice();
-    for (let i = 0; i < 11; i++) office = applyEvent(office, event({ id: `e${i}`, agentId: `a${i}` }));
+    for (let i = 0; i < 17; i++) office = applyEvent(office, event({ id: `e${i}`, agentId: `a${i}` }));
     const rooms = layoutRooms(projectsOf(office));
-    expect(rooms.map(r => r.agents.length)).toEqual([6, 5]);
-    expect(new Set(rooms.flatMap(r => r.seats.map(s => s.agent.key))).size).toBe(11);
+    expect(rooms.map(r => r.agents.length)).toEqual([12, 5]);
+    expect(new Set(rooms.flatMap(r => r.seats.map(s => s.agent.key))).size).toBe(17);
     expect(rooms[0].session.key).toBe(rooms[1].session.key);
   });
   it('bounds retained history and retry IDs', () => {

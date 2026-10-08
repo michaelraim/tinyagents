@@ -2,7 +2,7 @@
 
 A public beta of a living Three.js coworking office for Codex and Claude Code. A reference video informed the cutaway rooms, miniature furniture, and expressive coworkers; all geometry here is original procedural Three.js geometry.
 
-**[Open your office](https://tinyagents.michael-325.workers.dev)** · **[Connect your agents](https://tinyagents.michael-325.workers.dev/setup.html)** · **[Owner checklist](docs/launch-guide.md)**
+**[Homepage](https://tinyagents.michael-325.workers.dev)** · **[Open your office](https://tinyagents.michael-325.workers.dev/office)** · **[Connect your agents](https://tinyagents.michael-325.workers.dev/setup.html)** · **[Owner checklist](docs/launch-guide.md)**
 
 Anyone can create an office; its activity is private. Cloudflare Workers serves the website and SQLite Durable Objects store office state. Every push to main deploys automatically after Windows and Linux checks pass.
 
@@ -17,7 +17,7 @@ npm run assets:build
 npm run dev
 ```
 
-Open **http://127.0.0.1:5187**. It starts in a clearly labeled demo with thirteen simulated coworkers across three projects and five sessions. In a second terminal, start the local bridge to try actual hook events:
+Open **http://127.0.0.1:5187**. It opens the public homepage with an interactive miniature. `/office` opens your real workspace; `/demo` is the explicitly labeled playground with thirteen simulated coworkers. Use + Project, + Session and + Subagent to exercise the layout generator. In a second terminal, start the local bridge to try actual hook events:
 
 ```sh
 npm run bridge
@@ -28,16 +28,20 @@ Choose **Connect agents → Create my office**. Save the connection file and vie
 ## What works
 
 - Full-screen simulation world with orbit, zoom, room focus, a dynamic minimap, day/evening lighting, and a camera that follows a coworker.
-- Variable-sized session rooms with leads beside subagents, six-seat overflow annexes, stepped suite footprints, glass partitions, storage, pairing corners and printers. Project names and session status boards are mounted on the architecture.
+- Generated session suites, sized from workstation counts, with up to twelve desks before an annex is needed. A packing algorithm chooses positions from the existing footprint and routes paths through the remaining land; there are no predefined project slots or floor-plan templates. Shared spaces grow with headcount. Painted, post-mounted 3D entrance signs stay readable at overview zoom; character bubbles are native scene sprites with no DOM tracking lag.
 - Articulated voxel coworkers with elbows and knees, blended seated poses, distance-driven walking, and distinct coding, reading, testing, thinking, waiting and blocked gestures. Idle/done agents visit shared spaces; new work brings them back. Offline agents leave an empty workstation. Pause, 1×/2× animation speed, and reduced-motion controls.
-- A shared reception, meeting room, coffee kitchen, arcade and quiet booths. Fixed-step crowd movement uses clearance-aware A* routes, stationary-coworker avoidance, acceleration, disc contacts, obstacle sliding and reserved break spots. Furniture bounds and navigation come from the same floor plan.
-- Desk monitor activity, attention lamps, doorway status lights, transition rings, completion confetti, footsteps and subagent completion trails. Poke/snack/cheer produce short gestures and speech bubbles. Sound feedback is opt-in.
+- A shared reception, meeting room, coffee kitchen, arcade and planted central courtyard. Fixed-step crowd movement uses clearance-aware A* routes, stationary-coworker avoidance, acceleration, disc contacts, obstacle sliding and reserved break spots. Furniture bounds and navigation come from the same floor plan.
+- Persistent state/emotion bubbles, desk monitor activity, attention lamps, doorway status lights, transition rings, completion confetti, footsteps and explicit handoff trails. Poke/snack/cheer produce short gestures and speech bubbles. Sound feedback is opt-in.
 - **50 verticals × 20 prop recipes = 1,000 generated GLB assets**, with SVG previews and one downloadable ZIP per vertical. Open **Make it yours** to search all props, inspect a rotating 3D model, apply a project theme, or add/remove individual props. Each room has twelve display spots; designs persist in localStorage on this device.
 - Provider-aware project/session/subagent hierarchy with aggregated work, attention, idle, completion and stale-signal states. Attention counts remain visible alongside concurrently running work.
 - Poke, snack, and cheer reactions. These are visual interactions and do not send prompts or influence the real agent.
 - Local hook normalization, bounded disk outbox, automatic next-hook retries, manual flush/optional retry watcher, authenticated pairing diagnostics, WebSocket snapshots, and persistence.
 - Generated Codex and Claude plugin folders and zip downloads, using a shared dependency-free Node observer.
 - A Cloudflare Worker with one SQLite-backed Durable Object per office, hibernatable WebSockets, stored state, public registration with rate limits, recovery keys, key replacement, and office deletion.
+
+- A motion-rich public homepage with an interactive miniature, signup and a separate demo route.
+- Owner-local office clocks with automatic gradual day/night lighting and daylight-saving support. Neighbors keep their own room clock and lighting. Manual day/night preview is temporary.
+- Explicit delegation/return/message events trigger character acknowledgement and handoff trails. Idle pairs can meet; busy characters keep working. Background break chatter is cosmetic and labeled separately. Public visits do not expose private collaboration history.
 
 ## Verify
 
@@ -92,7 +96,7 @@ Both plugins read `~/.sidequest/config.json`, or the file named by `SIDEQUEST_CO
 }
 ```
 
-Use forward slashes for Windows paths. Assign matching `projectId` values to worktrees or machines that should share a room. Themes are `studio`, `lab`, and `garden`. Without an override, the local working directory is hashed and its last segment is used as the visible name. Names and explicit task labels are shared metadata. Raw prompts, code, command arguments, transcripts, and tool outputs are never forwarded.
+Use forward slashes for Windows paths. Assign matching `projectId` values to worktrees or machines that should share a room. Themes are `studio`, `lab`, and `garden`. Without an override, a normalized Git origin is hashed; non-Git folders use their real local path. The folder basename remains the default visible name. Names and explicit task labels are shared metadata. Raw prompts, code, command arguments, transcripts, and tool outputs are never forwarded.
 
 Edit `bridge/` and `scripts/build-plugins.mjs`, then run `npm run plugins:build`; generated plugin copies should not be edited directly.
 

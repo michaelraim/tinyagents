@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { timeZoneSchema } from './clock.ts';
 
 export const states = ['thinking', 'coding', 'reading', 'testing', 'waiting', 'blocked', 'idle', 'done', 'offline'] as const;
 export type AgentState = typeof states[number];
@@ -8,6 +9,8 @@ const identifier = z.string().min(1).max(160).regex(/^[a-zA-Z0-9_.:-]+$/).refine
 export const eventSchema = z.object({
   version: z.literal(1), id: identifier, at: z.number().int().positive(),
   provider: z.enum(['codex', 'claude']), instanceId: identifier.optional(),
+  timeZone: timeZoneSchema.optional(),
+  collaboration: z.object({ kind: z.enum(['delegate','return','message']), targetAgentId: identifier, targetSessionId: identifier.optional() }).strict().optional(),
   project: z.object({ id: identifier, name: z.string().min(1).max(60), theme: z.enum(['studio', 'lab', 'garden']).default('studio'),
     identity: z.enum(['repository', 'folder', 'manual']).optional(), vertical: z.string().regex(/^[a-z-]{1,50}$/).optional(), description: z.string().max(180).optional() }).strict(),
   sessionId: identifier, agentId: identifier, parentAgentId: identifier.optional(),
@@ -17,8 +20,8 @@ export const eventSchema = z.object({
   phase: z.enum(['start', 'finish', 'state']).default('state'),
 }).strict();
 export type OfficeEvent = z.infer<typeof eventSchema>;
-export type Agent = OfficeEvent & { key: string; joinedAt: number; officeName?: string; visitingOfficeId?: string; toolMarks: Record<string, number>; tools: Record<string, { state: AgentState; activity: string; tool: string; at: number }> };
-export type OfficeState = { agents: Agent[]; events: OfficeEvent[]; seen: string[]; revision: number };
+export type Agent = OfficeEvent & { key: string; joinedAt: number; officeName?: string; officeTimeZone?: string; visitingOfficeId?: string; toolMarks: Record<string, number>; tools: Record<string, { state: AgentState; activity: string; tool: string; at: number }> };
+export type OfficeState = { agents: Agent[]; events: OfficeEvent[]; seen: string[]; revision: number; timeZone?: string };
 export const emptyOffice = (): OfficeState => ({ agents: [], events: [], seen: [], revision: 0 });
 export const agentKey = (e: Pick<OfficeEvent, 'provider' | 'instanceId' | 'sessionId' | 'agentId'>) => `${e.provider}:${e.instanceId ? e.instanceId + ':' : ''}${e.sessionId}:${e.agentId}`;
 export const sameSession = (a: Agent, b: Agent) => a.provider === b.provider && a.instanceId === b.instanceId && a.sessionId === b.sessionId && a.project.id === b.project.id;
@@ -59,10 +62,11 @@ export function applyEvent(office: OfficeState, event: OfficeEvent): OfficeState
     ...previous, ...event, key, joinedAt: previous?.joinedAt ?? event.at, tools, toolMarks: boundedMarks,
     task: event.task ?? previous?.task,
     parentAgentId: event.parentAgentId ?? previous?.parentAgentId,
+    collaboration: event.collaboration,
     ...(event.phase === 'finish' && pending ? { state: pending.state, activity: pending.activity, tool: pending.tool } : {}),
   };
   const agents = [...office.agents.filter(a => a.key !== key), agent].sort((a, b) => a.joinedAt - b.joinedAt);
-  return { agents: agents.slice(-160), events: [event, ...office.events].slice(0, 80), seen, revision: office.revision + 1 };
+  return { ...office, timeZone: office.timeZone ?? event.timeZone, agents: agents.slice(-160), events: [event, ...office.events].slice(0, 80), seen, revision: office.revision + 1 };
 }
 
 export function effectiveState(agent: Agent, now: number): AgentState {

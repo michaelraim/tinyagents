@@ -5,6 +5,8 @@ import { emptyOffice, applyEvent } from '../shared/protocol.ts';
 import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security.ts';
 import { shareSchema, privateSharing, publicOffice } from '../shared/public-office.ts';
 
+import { clockSettingsSchema, timeZoneSchema } from '../shared/clock.ts';
+
 const port = Number(process.env.PORT || 8787);
 const dataDir = process.env.SIDEQUEST_DATA_DIR || '.local';
 await mkdir(dataDir, { recursive: true });
@@ -58,6 +60,14 @@ const server = http.createServer(async (req, res) => {
       const { record } = officeFrom(req, url);
       return record?.sharing?.enabled ? json(res, 200, publicOffice(record.office, record.sharing)) : json(res, 404, { error: 'This office is private or the visitor link is closed.' });
     }
+    if (req.method === 'POST' && url.pathname === '/api/clock') {
+      const { id, record } = officeFrom(req, url);
+      if (limited('clock', 30) || !record || !await matches(String(req.headers.authorization ?? '').replace(/^Bearer /, ''), record.ownerHash ?? '')) return json(res, 401, { error: 'The recovery key is required to set the office clock.' });
+      const parsed = clockSettingsSchema.safeParse(await body(req));
+      if (!parsed.success) return json(res, 400, { error: 'Choose a valid IANA time zone.' });
+      record.office = { ...record.office, timeZone: parsed.data.timeZone, revision: record.office.revision + 1 };
+      await save(); broadcast(id, record.office); return json(res, 200, parsed.data);
+    }
     if (req.method === 'POST' && url.pathname === '/api/connection') {
       const { record } = officeFrom(req, url);
       if (!record || !await matches(String(req.headers.authorization ?? '').replace(/^Bearer /, ''), record.ingestHash)) return json(res, 401, { error: 'Invalid ingest credentials' });
@@ -65,9 +75,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/offices') {
       if (limited('create', 10)) return json(res, 429, { error: 'Please wait before creating another office.' });
-      await body(req);
+      const {timeZone} = await body(req);
+      const zone = timeZone === undefined ? undefined : timeZoneSchema.safeParse(timeZone);
+      if (zone && !zone.success) return json(res, 400, {error:'Invalid time zone'});
       const officeId = crypto.randomUUID(), ingestKey = token(), viewerKey = token(), ownerKey = token();
-      offices[officeId] = { ingestHash: await digest(ingestKey), viewerHash: await digest(viewerKey), ownerHash: await digest(ownerKey), office: emptyOffice() };
+      offices[officeId] = { ingestHash: await digest(ingestKey), viewerHash: await digest(viewerKey), ownerHash: await digest(ownerKey), office: { ...emptyOffice(), timeZone: zone?.data } };
       await save();
       return json(res, 201, { officeId, ingestKey, viewerKey, ownerKey }, { 'Set-Cookie': viewerCookie(officeId, viewerKey, false) });
     }

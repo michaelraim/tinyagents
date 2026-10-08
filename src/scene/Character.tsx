@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Html } from '@react-three/drei';
+import { GameBubble } from './GameLabels';
 import { useFrame } from '@react-three/fiber';
 import { Group, MathUtils, Vector3 } from 'three';
 import { VoxelModel } from './VoxelModel';
@@ -11,10 +11,10 @@ import type { OfficeSimulation } from '../../shared/simulation';
 export type Reaction = { key: string; kind: 'poke' | 'snack' | 'cheer'; at: number };
 export type AgentPositions = Map<string, Vector3>;
 
-export function Character({ agent, state, index, selected, onSelect, reaction, paused, reducedMotion, speed, positions, simulation, projectColor, projectMark, role, socialLabel }: {
+export function Character({ agent, state, index, selected, onSelect, reaction, paused, reducedMotion, speed, positions, simulation, projectColor, projectMark, role, socialLabel, talkPartner }: {
   agent: Agent; state: AgentState; index: number; selected: boolean; onSelect: () => void; reaction?: Reaction;
   paused: boolean; reducedMotion: boolean; speed: number; positions: AgentPositions; simulation: OfficeSimulation;
-  projectColor: string; projectMark: string; role: string; socialLabel?: string;
+  projectColor: string; projectMark: string; role: string; socialLabel?: string; talkPartner?:string;
 }) {
   const root = useRef<Group>(null), body = useRef<Group>(null), head = useRef<Group>(null);
   const arms = useRef<(Group | null)[]>([]), elbows = useRef<(Group | null)[]>([]), legs = useRef<(Group | null)[]>([]), knees = useRef<(Group | null)[]>([]);
@@ -45,7 +45,10 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
     body.current.rotation.z = calm ? 0 : Math.sin(stride) * .035 * walk;
     body.current.rotation.x = MathUtils.damp(body.current.rotation.x, atDesk && state === 'blocked' ? .15 : walk * .05, 7, dt);
     head.current.rotation.x = MathUtils.damp(head.current.rotation.x, state === 'blocked' ? .24 : state === 'reading' ? .14 : state === 'thinking' ? -.12 : -.03, 5, dt);
-    head.current.rotation.y = MathUtils.damp(head.current.rotation.y, reacting ? -.25 : calm ? 0 : atDesk ? Math.sin(t * .85) * .09 : Math.sin(t * .55) * .2, 6, dt);
+    const partner=talkPartner?simulation.bodies.get(talkPartner):undefined;
+    const chatting=!!partner&&sim.phase!=='walking';
+    const talkAngle=partner?Math.atan2(partner.x-sim.x,partner.z-sim.z)-sim.angle:0;
+    head.current.rotation.y = MathUtils.damp(head.current.rotation.y, chatting ? MathUtils.clamp(Math.atan2(Math.sin(talkAngle),Math.cos(talkAngle)),-.9,.9) : reacting ? -.25 : calm ? 0 : atDesk ? Math.sin(t * .85) * .09 : Math.sin(t * .55) * .2, 6, dt);
     head.current.rotation.z = MathUtils.damp(head.current.rotation.z, state === 'thinking' ? -.12 : reacting && reaction?.kind === 'poke' ? .2 : 0, 7, dt);
     for (let side = 0; side < 2; side++) {
       const arm = arms.current[side], elbow = elbows.current[side], leg = legs.current[side], knee = knees.current[side];
@@ -65,6 +68,7 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
       if (sim.phase === 'break' && side) { ax = -.55; ex = -1.3 + (calm ? 0 : Math.sin(t * .9) * .3); }
       if (reacting && reaction?.kind === 'snack' && side) { ax = -.65; ex = -1.65 + Math.sin(t * 4) * .1; }
       if (reacting && reaction?.kind === 'poke' && side) { az = -1.25; ex = -.6; }
+      if(chatting&&!calm&&side){ax=-.55+Math.sin(t*3)*.16;ex=-.9;az=-.25-Math.sin(t*2)*.12;}
       if (celebrate) { ax = -.1; az = side ? -2.5 : 2.5; ex = -.35; }
       arm.rotation.x = MathUtils.damp(arm.rotation.x, ax, 11, dt); arm.rotation.z = MathUtils.damp(arm.rotation.z, az, 11, dt); elbow.rotation.x = MathUtils.damp(elbow.rotation.x, ex, 11, dt);
     }
@@ -98,7 +102,8 @@ export function Character({ agent, state, index, selected, onSelect, reaction, p
     {!reducedMotion && <Footsteps bodyKey={agent.key} simulation={simulation} paused={paused}/>}
     {!reducedMotion && changed && <StatePulse at={transition} color={stateMeta[state].color} paused={paused}/>}
     {!reducedMotion && (showingReaction || changed && state === 'done') && <ReactionBurst at={reaction?.at ?? transition} kind={reaction?.kind ?? 'cheer'} paused={paused}/>}
-    {(selected || hovered || changed || showingReaction || socialLabel) && <Html position={[0,2.7,0]} center zIndexRange={[20,0]} style={{pointerEvents:'none'}}><div className={`thought-bubble ${state === 'waiting' ? 'attention' : ''}`}>{socialLabel || (showingReaction ? reaction?.kind === 'snack' ? '🍪 nom!' : reaction?.kind === 'poke' ? '👀 hey, you' : '💛 thank you!' : `${stateMeta[state].emoji} ${stateMeta[state].feeling}`)}</div></Html>}
-    {(selected || hovered) && <Html position={[0,.02,.6]} center zIndexRange={[15,0]}><button className={`agent-label ${selected ? 'selected' : ''}`} onClick={onSelect}><i style={{background:projectColor}}/>{agent.name} · {agent.provider==='codex'?'⌘ Codex':'✳ Claude'}<small>{role==='Team lead'?'★':agent.parentAgentId?'↳':'●'} {projectMark} · {agent.project.name}</small></button></Html>}
+    <GameBubble compact={!(selected||hovered||changed||showingReaction||socialLabel)} attention={state==='waiting'||state==='blocked'} text={socialLabel || (showingReaction ? reaction?.kind === 'snack' ? '🍪 nom!' : reaction?.kind === 'poke' ? '👀 hey, you' : '💛 thank you!' : selected||hovered||changed ? `${stateMeta[state].emoji} ${stateMeta[state].feeling}` : `${stateMeta[state].emoji} ${({coding:'😎',thinking:'🤔',testing:'🧐',reading:'👓',waiting:'🥺',blocked:'😵',done:'🥳',idle:'😌',offline:'💤'})[state]}`)}/>
+    {(selected||hovered)&&<GameBubble nameplate position={[0,3.7,0]} text={`${role==='Team lead'?'★':agent.parentAgentId?'↳':agent.provider==='codex'?'⌘':'✳'} ${agent.name} · ${projectMark}`}/>}
+
   </group>;
 }

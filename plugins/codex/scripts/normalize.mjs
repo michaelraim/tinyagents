@@ -4,7 +4,7 @@ import path from 'node:path';
 const hash = value => createHash('sha256').update(value).digest('hex').slice(0, 24);
 const id = value => hash(String(value));
 const names = ['Milo', 'Cleo', 'Pip', 'Nova', 'Atlas', 'Bean', 'Luna', 'Fern', 'Chip', 'Sage', 'Remy', 'Wren'];
-const allowedTools = /^(Bash|Read|Write|Edit|Glob|Grep|Agent|Task|WebSearch|WebFetch|apply_patch|exec_command|spawn_agent|update_plan|functions[._].*|mcp__.*)$/;
+const allowedTools = /^(Bash|Read|Write|Edit|Glob|Grep|Agent|Task|WebSearch|WebFetch|apply_patch|exec_command|spawn_agent|SendMessage|send_input|send_message|followup_task|update_plan|functions[._].*|mcp__.*)$/;
 
 /** Normalize on the user's machine. No raw prompt, path, command, or result crosses the wire. */
 export function normalizeHook(raw, provider, config = {}, now = Date.now()) {
@@ -45,8 +45,15 @@ export function normalizeHook(raw, provider, config = {}, now = Date.now()) {
     case 'PostCompact': state = 'thinking'; activity = 'Picking up the thread'; break;
     default: return null;
   }
+  const parentId = raw.parent_agent_id ? id(raw.parent_agent_id) : sessionId;
+  const target = raw.tool_input?.recipient_agent_id ?? raw.tool_input?.agent_id ?? raw.tool_input?.id ?? raw.tool_input?.target;
+  const isMessage = hook === 'PreToolUse' && /^(?:functions[._])?(?:SendMessage|send_message|send_input|followup_task)$/.test(tool);
+  const collaboration = raw.agent_id && ['SubagentStart','SubagentStop'].includes(hook) ? {kind:hook==='SubagentStart'?'delegate':'return',targetAgentId:parentId} : isMessage && typeof target==='string' && target.length<=160 ? {kind:'message',targetAgentId:id(target)} : undefined;
+  let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  try { if (typeof config.timeZone === 'string') { new Intl.DateTimeFormat('en', {timeZone:config.timeZone}).format(); timeZone=config.timeZone; } } catch { /* Keep the machine's valid time zone. */ }
   return {
-    version: 1, id: randomUUID(), at: now, provider,
+    version: 1, id: randomUUID(), at: now, provider, timeZone,
+    ...(collaboration ? {collaboration} : {}),
     ...(config.instanceId ? { instanceId: id(config.instanceId) } : {}),
     project: { id: projectId, name: (config.projectName || path.posix.basename(cwd) || 'My project').slice(0, 60), theme: ['studio', 'lab', 'garden'].includes(config.theme) ? config.theme : 'studio',
       ...(config.projectIdentity ? { identity: config.projectIdentity } : {}),

@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { WorldHtml as Html } from './WorldHtml';
 import { CanvasTexture, Group, Mesh, MeshStandardMaterial, SRGBColorSpace } from 'three';
 import { Box, Cylinder, Plant, Sofa, CoffeeSteam } from './Props';
 import { VoxelModel } from './VoxelModel';

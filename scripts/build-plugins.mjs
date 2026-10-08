@@ -13,7 +13,7 @@ for (const provider of ['codex', 'claude']) {
     async: true, timeout: 3,
   }] }]]));
   files['hooks/hooks.json'] = JSON.stringify({ description: 'Sidequest activity observer. Sends allowlisted metadata only; never changes agent decisions.', hooks }, null, 2);
-  const manifest = { name: 'sidequest-office', version: '0.4.0', description: 'A living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
+  const manifest = { name: 'sidequest-office', version: '0.5.0', description: 'A living office for your coding agents. Metadata-only activity observer.', author: { name: 'Michael Raim' } };
   if (provider === 'codex') files['plugin.json'] = JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', ...manifest, extensions: { 'com.openai': { hooks: './hooks/hooks.json' } } }, null, 2);
   else files['.claude-plugin/plugin.json'] = JSON.stringify(manifest, null, 2);
   for (const file of ['emit.mjs', 'normalize.mjs', 'project.mjs', 'setup.mjs', 'transport.mjs', 'office.mjs']) files[`scripts/${file}`] = await readFile(`bridge/${file}`, 'utf8');
@@ -21,7 +21,7 @@ for (const provider of ['codex', 'claude']) {
 
 Requires Node.js 22.18+ on PATH in the environment where the coding client runs.
 
-1. Open https://tinyagents.michael-325.workers.dev, choose Connect agents, and create your office. No invite needed.
+1. Open https://tinyagents.michael-325.workers.dev, choose Get your office, and create your office. No invite needed.
 2. Download the connection file and save the recovery file privately. The recovery key lets you replace keys and delete the office.
 3. From this extracted plugin directory, pair your machine:
 
@@ -66,7 +66,7 @@ Up to 256 events are kept for seven days. A timeout leaves them queued. Stop wat
 
 ## Privacy and configuration
 
-Only provider, hashed project/client/session/agent IDs, display name, generic activity, allowlisted tool name, parent link, optional room metadata and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
+Only provider, hashed project/client/session/agent IDs, display name, generic activity, allowlisted tool name, parent link, optional room metadata, IANA time zone, hashed targets for recognized handoffs/messages and timestamp are sent. Prompts, raw commands, source, transcripts and tool output remain local.
 
 Projects are identified by a locally hashed, normalized Git origin. SSH/HTTPS clones, subfolders and worktrees of the same remote share a project. Without a remote, the Git common directory is used; non-Git folders use their real path. Raw paths, remote URLs and remote credentials are never uploaded. Codex and Claude keep separate sessions and people inside that project.
 

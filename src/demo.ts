@@ -50,5 +50,23 @@ export function nextDemoEvent(office: OfficeState, tick: number): OfficeEvent {
   const [state, activity] = cycle[(1 + Math.floor(tick / eligible.length)) % cycle.length];
   return { version: 1, id: `demo-live-${tick}-${Date.now()}`, at: Date.now(), provider: agent.provider,
     project: agent.project, sessionId: agent.sessionId, agentId: agent.agentId, parentAgentId: agent.parentAgentId,
-    name: agent.name, state, activity, task: agent.task, phase: 'state' };
+    name: agent.name, state, activity, task: agent.task, phase: 'state',
+    ...(agent.parentAgentId && (state==='done'||tick%5===2)?{collaboration:{kind:state==='done'?'return' as const:'message' as const,targetAgentId:agent.parentAgentId}}:{}) };
+}
+
+export function growDemo(office:OfficeState,kind:'project'|'session'|'agent'):OfficeState{
+  if(office.agents.length>=100)return office;
+  const stamp=Date.now(),serial=office.agents.length;
+  const subject=office.agents[office.agents.length-1]??createDemo().agents[0];
+  const themes=[{name:'Moonshot robotics',vertical:'robotics'},{name:'Pixel playground',vertical:'games'},{name:'Paper trail',vertical:'publishing'},{name:'Night owl radio',vertical:'music'}];
+  const theme=themes[serial%themes.length];
+  const project=kind==='project'?{id:`demo-project-${stamp}`,name:theme.name,theme:'studio' as const,vertical:theme.vertical}:subject.project;
+  const sessionId=kind==='agent'?subject.sessionId:`demo-session-${stamp}`,lead=kind==='agent'?(subject.parentAgentId??subject.agentId):`demo-agent-${stamp}-0`;
+  let next=office;
+  for(let i=0;i<(kind==='project'?3:1);i++)next=applyEvent(next,{
+    version:1,id:`demo-growth-${stamp}-${i}`,at:stamp,provider:subject.provider,project,sessionId,agentId:`demo-agent-${stamp}-${i}`,
+    parentAgentId:kind==='agent'||i>0?lead:undefined,name:['Wren','Rae','Jules','Niko','Ada'][((serial+i)%5)],state:i===2?'testing':'thinking',activity:'Joined a new demo task',phase:'state',
+    ...(kind==='agent'||i>0?{collaboration:{kind:'delegate',targetAgentId:lead}}:{})
+  });
+  return next;
 }

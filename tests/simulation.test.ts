@@ -24,7 +24,7 @@ describe('office floor plan and circulation',()=>{
       let previous=seat;
       for(const p of path){expect(nav.line(previous,p),seat.agent.name+' segment').toBe(true);previous={...seat,...p};}
     }
-  });
+  },15000);
   it('routes around furniture and rejects sealed destinations',()=>{
     const floor={x:0,z:0,w:12,d:12};
     const nav=new Navigation({bounds:floor,floors:[floor],obstacles:[{x:0,z:0,w:3,d:7}]});

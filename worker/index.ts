@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { applyEvent, emptyOffice, type OfficeState } from '../shared/protocol';
 import { batchSchema, digest, matches, canView, token, viewerCookie, viewerFromCookie, validEventTime, officeIdPattern } from '../shared/security';
 import { shareSchema, privateSharing, publicOffice, type ShareSettings } from '../shared/public-office';
+import { clockSettingsSchema, timeZoneSchema } from '../shared/clock';
 interface Env { OFFICES: DurableObjectNamespace<Office>; ASSETS: Fetcher; REGISTRATION_KEY?: string; PUBLIC_SIGNUP?: string; BUILD_SHA?: string; SIGNUP_LIMITER: RateLimit; AUTH_LIMITER: RateLimit }
 type RecordData = { office: OfficeState; ingestHash: string; viewerHash: string; ownerHash?: string; sharing?: ShareSettings };
 const json = (data: unknown, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -34,17 +35,19 @@ export default {
         // Signup has no user identity yet. This short IP limit reduces automated creation;
         // it is intentionally modest protection, not a global billing/quota guarantee.
         if (!(await env.SIGNUP_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Please wait a minute before creating another office.' }, 429, { 'Retry-After': '60' });
-        const { invite } = await readBody(request);
+        const { invite, timeZone } = await readBody(request);
+        const zone = timeZone === undefined ? undefined : timeZoneSchema.safeParse(timeZone);
+        if (zone && !zone.success) return json({ error: 'Invalid time zone' }, 400);
         if (!publicSignup) {
           if (!env.REGISTRATION_KEY) return json({ error: 'Registration is temporarily unavailable.' }, 503);
           if (!await matches(String(invite ?? ''), await digest(env.REGISTRATION_KEY))) return json({ error: 'An invite code is needed for this office.' }, 403);
         }
         const officeId = crypto.randomUUID(), ingestKey = token(), viewerKey = token(), ownerKey = token();
         const stub = env.OFFICES.get(env.OFFICES.idFromName(officeId));
-        await stub.initialize(await digest(ingestKey), await digest(viewerKey), await digest(ownerKey));
+        await stub.initialize(await digest(ingestKey), await digest(viewerKey), await digest(ownerKey), zone?.data);
         return json({ officeId, ingestKey, viewerKey, ownerKey }, 201, { 'Set-Cookie': viewerCookie(officeId, viewerKey, true) });
       }
-      if (['/api/session', '/api/keys', '/api/office', '/api/share'].includes(url.pathname) && !(await env.AUTH_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Too many attempts. Try again in a minute.' }, 429, { 'Retry-After': '60' });
+      if (['/api/session', '/api/keys', '/api/office', '/api/share', '/api/clock'].includes(url.pathname) && !(await env.AUTH_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' })).success) return json({ error: 'Too many attempts. Try again in a minute.' }, 429, { 'Retry-After': '60' });
       if (request.method === 'POST' && url.pathname === '/api/session') {
         const { officeId, viewerKey } = await readBody(request);
         if (!officeIdPattern.test(String(officeId))) return json({ error: 'Invalid office credentials' }, 401);
@@ -52,7 +55,7 @@ export default {
         if (!await stub.login(String(viewerKey ?? ''))) return json({ error: 'Invalid office credentials or too many attempts' }, 401);
         return json({ ok: true }, 200, { 'Set-Cookie': viewerCookie(officeId, viewerKey, true) });
       }
-      if (!['/api/connection', '/api/events', '/api/snapshot', '/api/stream', '/api/keys', '/api/office', '/api/share', '/api/public', '/api/public/stream'].includes(url.pathname)) return json({ error: 'Not found' }, 404);
+      if (!['/api/connection', '/api/events', '/api/snapshot', '/api/stream', '/api/keys', '/api/office', '/api/share', '/api/public', '/api/public/stream', '/api/clock'].includes(url.pathname)) return json({ error: 'Not found' }, 404);
       const officeId = request.headers.get('X-Office-Id') || url.searchParams.get('office') || '';
       if (request.headers.has('X-Office-Id') && url.searchParams.has('office') && request.headers.get('X-Office-Id') !== url.searchParams.get('office')) return json({ error: 'Office IDs must match' }, 400);
       if (!officeIdPattern.test(officeId)) return json({ error: 'Invalid office ID' }, 400);
@@ -71,9 +74,9 @@ export class Office extends DurableObject<Env> {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => { this.record = await ctx.storage.get<RecordData>('state'); });
   }
-  async initialize(ingestHash: string, viewerHash: string, ownerHash: string) {
+  async initialize(ingestHash: string, viewerHash: string, ownerHash: string, timeZone?: string) {
     if (this.record) throw new Error('Office already exists');
-    this.record = { office: emptyOffice(), ingestHash, viewerHash, ownerHash };
+    this.record = { office: { ...emptyOffice(), timeZone }, ingestHash, viewerHash, ownerHash };
     await this.ctx.storage.put('state', this.record);
   }
   private limited(kind: 'events' | 'logins', max: number) {
@@ -84,6 +87,14 @@ export class Office extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     if (!this.record) return json({ error: 'Office not found' }, 404);
     const url = new URL(request.url);
+    if (request.method === 'POST' && url.pathname === '/api/clock') {
+      if (this.limited('logins', 30) || !await matches((request.headers.get('Authorization') || '').replace(/^Bearer /, ''), this.record.ownerHash ?? '')) return json({ error: 'The recovery key is required to set the office clock.' }, 401);
+      const parsed = clockSettingsSchema.safeParse(await readBody(request));
+      if (!parsed.success) return json({ error: 'Choose a valid IANA time zone.' }, 400);
+      this.record.office = { ...this.record.office, timeZone: parsed.data.timeZone, revision: this.record.office.revision + 1 };
+      await this.ctx.storage.put('state', this.record);
+      this.broadcast(); return json(parsed.data);
+    }
     if (url.pathname === '/api/share' && ['GET', 'POST'].includes(request.method)) {
       if (this.limited('logins', 30) || !await matches((request.headers.get('Authorization') || '').replace(/^Bearer /, ''), this.record.ownerHash ?? '')) return json({ error: 'The recovery key is required to change sharing.' }, 401);
       if (request.method === 'GET') return json(this.record.sharing ?? privateSharing());
@@ -131,13 +142,7 @@ export class Office extends DurableObject<Env> {
       if (!input.success || input.data.events.some(e => !validEventTime(e.at))) return json({ error: 'Invalid event batch' }, 400);
       for (const event of input.data.events) this.record.office = applyEvent(this.record.office, event);
       await this.ctx.storage.put('state', this.record);
-      const message = JSON.stringify({ type: 'snapshot', office: this.record.office });
-      for (const ws of this.ctx.getWebSockets()) { try {
-        if (this.ctx.getTags(ws).includes('public')) {
-          if (this.record.sharing?.enabled) ws.send(JSON.stringify({ type: 'snapshot', ...publicOffice(this.record.office, this.record.sharing) }));
-        } else if (this.ctx.getTags(ws).includes('private')) ws.send(message);
-        else ws.close(1000, 'Reconnect');
-      } catch { ws.close(1011, 'Reconnect'); } }
+      this.broadcast();
       return json({ accepted: input.data.events.length, revision: this.record.office.revision });
     }
     const officeId = url.searchParams.get('office') || '';
@@ -151,6 +156,16 @@ export class Office extends DurableObject<Env> {
       return new Response(null, { status: 101, webSocket: client });
     }
     return json({ error: 'Not found' }, 404);
+  }
+  private broadcast() {
+    if (!this.record) return;
+      const message = JSON.stringify({ type: 'snapshot', office: this.record.office });
+      for (const ws of this.ctx.getWebSockets()) { try {
+        if (this.ctx.getTags(ws).includes('public')) {
+          if (this.record.sharing?.enabled) ws.send(JSON.stringify({ type: 'snapshot', ...publicOffice(this.record.office, this.record.sharing) }));
+        } else if (this.ctx.getTags(ws).includes('private')) ws.send(message);
+        else ws.close(1000, 'Reconnect');
+      } catch { ws.close(1011, 'Reconnect'); } }
   }
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) { if (message === 'ping') ws.send('pong'); }
   webSocketClose(ws: WebSocket) { ws.close(1000, 'Closed'); }
