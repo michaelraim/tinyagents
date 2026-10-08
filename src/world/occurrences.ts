@@ -80,7 +80,9 @@ const happenings: Record<string, { weight: number; when?: (c: Ctx) => boolean; r
     weight: 1, when: c => c.daylight < 0.4,
     run: ({ world, emit }) => {
       fx.flickerUntil = performance.now() + 2600;
-      for (const b of world.bodies.values()) if (!b.npc && Math.random() < 0.5) world.say(b, pick(['😨', 'uh oh', 'did we save?!', '⚡?']), performance.now(), 'emote');
+      // A few startled voices, not a chorus.
+      const people = [...world.bodies.values()].filter(b => !b.npc && b.phase !== 'gone').sort(() => Math.random() - 0.5).slice(0, 4);
+      for (const b of people) world.say(b, pick(['😨', 'uh oh', 'did we save?!', '⚡?']), performance.now(), 'emote');
       emit(event('flicker', '⚡', 'The lights flickered…', 'Everyone checks if their work was saved.'));
     },
   },

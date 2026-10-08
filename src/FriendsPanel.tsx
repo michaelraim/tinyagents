@@ -3,13 +3,15 @@ import { ExternalLink, Link, X } from 'lucide-react';
 import type { useFriends } from './useFriends';
 type Designs = Record<string, { vertical: string; props: string[]; description?: string }>;
 import { privateSharing, type ShareSettings } from '../shared/public-office';
-import { hangouts, VISITOR_LIMIT, type Hangout } from '../shared/neighborhood';
+import { VISITOR_LIMIT } from '../shared/neighborhood';
+import { Tabs } from './Modal';
 import { summarizeAgents } from '../shared/protocol';
 
-export default function FriendsPanel({ accountOwned = false, book, officeId, visitId, onVisit, onHome, onConnect, onClose, neighborhoodOn, onNeighborhood, onHangout, designs, now }: {
+export default function FriendsPanel({ accountOwned = false, book, officeId, visitId, onVisit, onHome, onConnect, onClose, neighborhoodOn, onNeighborhood, designs, now }: {
   accountOwned?: boolean; book: ReturnType<typeof useFriends>; officeId: string; visitId: string; onVisit: (id: string) => void; onHome: () => void; onConnect: () => void; onClose: () => void;
-  neighborhoodOn: boolean; onNeighborhood: (value: boolean) => void; onHangout: (kind: Hangout['kind']) => void; designs: Designs; now: number;
+  neighborhoodOn: boolean; onNeighborhood: (value: boolean) => void; designs: Designs; now: number;
 }) {
+  const [tab, setTab] = useState<'friends' | 'share'>('friends');
   const [link, setLink] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false);
   const [key, setKey] = useState(''), [settings, setSettings] = useState<ShareSettings>(privateSharing), [loaded, setLoaded] = useState(false);
   useEffect(() => { if (accountOwned && officeId) void load(); }, [accountOwned, officeId]);
@@ -37,33 +39,53 @@ export default function FriendsPanel({ accountOwned = false, book, officeId, vis
   }
   async function add(value = link) { setBusy(true); setNotice(''); try { await book.add(value); setLink(''); setNotice('Office saved. Pick Visit, or add it to your neighborhood.'); } catch (e) { setNotice((e as Error).message); } finally { setBusy(false); } }
   const publicUrl = `${location.origin}/?visit=${officeId}`;
-  return <section className="game-panel glass friends" aria-label="Friends and neighborhood">
-    <div className="panel-heading"><div><small>THE HIGH-TECH NEIGHBORHOOD</small><h2>Friends & friendly rivals</h2></div><button onClick={onClose} aria-label="Close friends"><X size={18}/></button></div>
-    <div className="friends-scroll">
-      <p className="panel-intro">Follow a public office. Drop in for a visit. Invite its little people into your neighborhood.</p>
-      {visitId && <div className="friend-visit-actions"><button onClick={() => void add(location.href)}>＋ Save this office</button><button onClick={onHome}>⌂ Back to my office</button></div>}
-      <form className="friend-form" onSubmit={e => { e.preventDefault(); void add(); }}><label>Friend’s public office link<input type="url" required placeholder="https://…/?visit=…" value={link} onChange={e => setLink(e.target.value)}/></label><button className="primary" disabled={busy}>Add friend</button></form>
-      <div className="friends-list">{book.friends.map(friend => {
-        const state = book.states[friend.id], view = state?.view, counts = view ? summarizeAgents(view.office.agents, now) : null;
-        return <article className="friend-card" key={friend.id}><div className="friend-avatar">{(view?.profile.name ?? friend.name).slice(0,1)}</div><div className="friend-details"><h3>{view?.profile.name ?? friend.name}</h3><p>{state?.error ?? (counts ? `${counts.running} working · ${counts.total} in office` : 'Checking the lights…')}</p>{view?.profile.bio && <small>{view.profile.bio}</small>}<div className="friend-controls"><button disabled={!view} onClick={() => onVisit(friend.id)}>Visit <ExternalLink size={12}/></button><label><input type="checkbox" checked={friend.included} disabled={!friend.included && book.friends.filter(f=>f.included).length >= 3} onChange={() => book.toggle(friend.id)}/> In my world</label><button aria-label={`Remove ${friend.name} from friends`} onClick={() => book.remove(friend.id)}><X size={13}/></button></div>{view && view.office.agents.length > VISITOR_LIMIT && <small>First {VISITOR_LIMIT} visitors in the neighborhood. Visit to see the full office.</small>}</div></article>;
-      })}</div>
-      {!book.friends.length && <div className="friends-empty">🏡 It’s quiet on your street.<small>Ask a friend to open Friends → Share my office and send you their visitor link.</small></div>}
-      <div className="neighborhood-switch"><label><input type="checkbox" checked={neighborhoodOn} onChange={e => onNeighborhood(e.target.checked)}/> Show my neighborhood</label><p>Up to three friend offices share your café, arcade, and think tank. Their real status refreshes every 12 seconds.</p></div>
-      <div className="hangout-grid">{Object.entries(hangouts).map(([kind, value]) => <button key={kind} disabled={!neighborhoodOn || !book.friends.some(f=>f.included && book.states[f.id]?.view)} onClick={() => onHangout(kind as Hangout['kind'])}><span>{value.icon}</span>{value.name}</button>)}</div>
-      <p className="social-footnote">Hangouts happen in your view with characters between tasks. They never send messages to your friends, change work state, or control real agents. Friends are saved in this browser.</p>
-      <details className="share-office"><summary><Link size={15}/> Share my office</summary>
-        {!officeId ? <><p>Connect your own office first, then choose what visitors can see.</p><button className="primary" onClick={onConnect}>Connect my office</button></> : <>
-          {!loaded && accountOwned ? <><p>Loading your sharing settings…</p><button disabled={busy} onClick={()=>void load()}>Try again</button></> : !loaded ? <><p>Your office is private by default. Load your recovery file to manage its visitor link.</p><label>Office recovery file<input type="file" accept=".json" onChange={e=>void loadRecovery(e.target.files?.[0])}/></label><label>Or recovery key<input type="password" autoComplete="off" value={key} onChange={e=>setKey(e.target.value)}/></label><button className="primary" disabled={busy || !key} onClick={()=>void load()}>Load sharing settings</button></> : <>
-            <label>Public office name<input maxLength={60} value={settings.name} onChange={e=>setSettings(v=>({...v,name:e.target.value}))}/></label>
-            <label>Office motto<input maxLength={180} placeholder="Disrupting the coffee industry. From the inside." value={settings.bio} onChange={e=>setSettings(v=>({...v,bio:e.target.value}))}/></label>
-            <label className="check-label"><input type="checkbox" checked={settings.projectNames} onChange={e=>setSettings(v=>({...v,projectNames:e.target.checked}))}/> Show project names and room descriptions</label>
-            <p>Visitors see the office name, motto, character names, harnesses, hierarchy, room themes, and generic activity states. Project names stay anonymous unless enabled above. Task text, tool details, paths, keys, and private history are excluded.</p>
-            <button className="primary" disabled={busy || !settings.name.trim()} onClick={()=>void publish(true)}>{settings.enabled ? 'Update public office' : 'Open visitor link'}</button>
-            {settings.enabled && <><label>Public visitor link<input readOnly value={publicUrl} onFocus={e=>e.target.select()}/></label><button className="secondary" onClick={()=>{void navigator.clipboard.writeText(publicUrl).then(()=>setNotice('Visitor link copied.')).catch(()=>setNotice('Select and copy the visitor link above.'));}}>Copy link</button><button className="secondary" disabled={busy} onClick={()=>void publish(false)}>Close visitor link</button></>}
-          </>}
+  const shown = book.friends.filter(f => f.included).length;
+  return <aside className="hud-side hud-panel ui ui-friends" aria-label="Friends">
+    <header><h3>Friends</h3><button onClick={onClose} aria-label="Close friends"><X size={16}/></button></header>
+    <div className="hud-side-body">
+      <Tabs label="Friends sections" value={tab} onChange={setTab} options={[['friends', `Offices${book.friends.length ? ` · ${book.friends.length}` : ''}`], ['share', 'Share mine']]} />
+      {tab === 'friends' ? <>
+        {visitId && <div className="ui-row"><button className="ui-btn small" onClick={() => void add(location.href)}>＋ Save this office</button><button className="ui-btn small" onClick={onHome}>⌂ My office</button></div>}
+        <form className="ui-stack" onSubmit={e => { e.preventDefault(); void add(); }}>
+          <label className="ui-field">Friend’s visitor link<input type="url" required placeholder="https://…/?visit=…" value={link} onChange={e => setLink(e.target.value)}/></label>
+          <button className="ui-btn primary full" disabled={busy}>Add friend</button>
+        </form>
+        {book.friends.length ? book.friends.map(friend => {
+          const state = book.states[friend.id], view = state?.view, counts = view ? summarizeAgents(view.office.agents, now) : null;
+          const name = view?.profile.name ?? friend.name;
+          return <div className="ui-item" key={friend.id}>
+            <span className="ui-avatar">{name.slice(0, 1).toUpperCase()}</span>
+            <div><b>{name}</b><small>{state?.error ?? (counts ? `${counts.running} working · ${counts.total} in office` : 'Checking the lights…')}</small>
+              <label className="ui-check"><input type="checkbox" checked={friend.included} disabled={!friend.included && shown >= 3} onChange={() => book.toggle(friend.id)}/> Cowork in my building</label></div>
+            <div className="ui-row"><button className="ui-btn small" disabled={!view} onClick={() => onVisit(friend.id)} aria-label={`Visit ${name}`}><ExternalLink size={13}/></button>
+              <button className="ui-btn danger small" onClick={() => book.remove(friend.id)} aria-label={`Remove ${name}`}><X size={13}/></button></div>
+          </div>;
+        }) : <div className="ui-empty"><b>🏡 Quiet street</b>Ask a friend to open Friends → Share mine and send you their visitor link.</div>}
+        <label className="ui-check"><input type="checkbox" checked={neighborhoodOn} onChange={e => onNeighborhood(e.target.checked)}/> Show friends’ offices in my building</label>
+        <p className="ui-note">Up to three friends rent rooms in your building and share the café and lounge. Their real status refreshes every 12 seconds. Friends are saved in this browser.{book.friends.some(f => (book.states[f.id]?.view?.office.agents.length ?? 0) > VISITOR_LIMIT) ? ` Only the first ${VISITOR_LIMIT} of their people come over.` : ''}</p>
+      </> : !officeId ? <>
+        <p>Connect your own office first, then choose what visitors can see.</p>
+        <button className="ui-btn primary full" onClick={onConnect}>Connect my office</button>
+      </> : !loaded && accountOwned ? <>
+        <p>Loading your sharing settings…</p><button className="ui-btn small" disabled={busy} onClick={() => void load()}>Try again</button>
+      </> : !loaded ? <>
+        <p>Your office is private by default. Load your recovery file to manage its visitor link.</p>
+        <label className="ui-field">Office recovery file<input type="file" accept=".json" onChange={e => void loadRecovery(e.target.files?.[0])}/></label>
+        <label className="ui-field">Or recovery key<input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)}/></label>
+        <button className="ui-btn primary full" disabled={busy || !key} onClick={() => void load()}>Load sharing settings</button>
+      </> : <>
+        <label className="ui-field">Public office name<input maxLength={60} value={settings.name} onChange={e => setSettings(v => ({ ...v, name: e.target.value }))}/></label>
+        <label className="ui-field">Motto<input maxLength={180} placeholder="Disrupting the coffee industry. From the inside." value={settings.bio} onChange={e => setSettings(v => ({ ...v, bio: e.target.value }))}/></label>
+        <label className="ui-check"><input type="checkbox" checked={settings.projectNames} onChange={e => setSettings(v => ({ ...v, projectNames: e.target.checked }))}/> Show project names</label>
+        <p className="ui-note">Visitors see the office name, motto, character names, harnesses, teams, room themes and generic activity. Task text, tool details, paths, keys and history are never shared.</p>
+        <button className="ui-btn primary full" disabled={busy || !settings.name.trim()} onClick={() => void publish(true)}>{settings.enabled ? 'Update public office' : 'Open visitor link'}</button>
+        {settings.enabled && <>
+          <label className="ui-field">Visitor link<input readOnly value={publicUrl} onFocus={e => e.target.select()}/></label>
+          <div className="ui-row"><button className="ui-btn small" onClick={() => { void navigator.clipboard.writeText(publicUrl).then(() => setNotice('Visitor link copied.')).catch(() => setNotice('Select and copy the visitor link above.')); }}><Link size={13}/> Copy</button>
+            <button className="ui-btn danger small" disabled={busy} onClick={() => void publish(false)}>Close link</button></div>
         </>}
-      </details>
-      {notice && <p className="social-notice" role="status">{notice}</p>}
+      </>}
+      {notice && <p className="ui-ok" role="status">{notice}</p>}
     </div>
-  </section>;
+  </aside>;
 }

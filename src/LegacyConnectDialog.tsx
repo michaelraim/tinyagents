@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Download, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowRight, Download } from 'lucide-react';
+import Modal, { Tabs } from './Modal';
 import { localTimeZone } from '../shared/clock';
 type Keys = { officeId: string; ingestKey: string; viewerKey: string; ownerKey: string };
 type Health = { publicSignup: boolean; storage: string; registration: boolean };
 function savedOffice() { try { return localStorage.getItem('sidequest.office') ?? ''; } catch { return ''; } }
 export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTab }: { onClose: () => void; onConnect: (id: string) => void; onDeleted: (id: string) => void; initialTab?: 'new'|'existing' }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [keys, setKeys] = useState<Keys>();
   const [tab, setTab] = useState<'new' | 'existing' | 'manage'>(() => initialTab ?? (savedOffice() ? 'existing' : 'new'));
   const [health, setHealth] = useState<Health>();
@@ -13,7 +13,6 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTa
   const [confirmation, setConfirmation] = useState(''), [savedRecovery, setSavedRecovery] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   useEffect(() => {
-    dialog.current?.showModal();
     const controller = new AbortController();
     void fetch('/api/health', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]) })
       .then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(setHealth)
@@ -68,45 +67,43 @@ export default function ConnectDialog({ onClose, onConnect, onDeleted, initialTa
     } catch { setError('Choose the recovery JSON file downloaded when you created your office.'); }
   }
   const needsInvite = health && !health.publicSignup && health.storage !== 'local';
-  return <dialog ref={dialog} className="connect-dialog" onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
-    <button className="icon-button close-dialog" onClick={close} aria-label="Close connection setup"><X size={18} /></button>
-    <div className="dialog-icon"><img src="/favicon.svg" alt="tinyAGENTS" /></div>
-    <p className="eyebrow">MAKE YOURSELF AT HOME</p><h2>Bring your agents in.</h2>
-    {!keys ? <>
-      {tab==='new'&&<p className="muted">☀️ Office time zone: {localTimeZone().replaceAll('_',' ')}. Day and night will follow this clock.</p>}
-      <p className="muted">Anyone can have a little office. Your office starts private. Connect Codex, Claude Code, or both.</p>
-      <div className="segmented">
-        {(health?.publicSignup || health?.storage === 'local') && <button className={tab === 'new' ? 'active' : ''} onClick={() => { setTab('new'); setError(''); }}>New office</button>}
-        <button className={tab === 'existing' ? 'active' : ''} onClick={() => { setTab('existing'); setError(''); }}>Open office</button>
-        <button className={tab === 'manage' ? 'active' : ''} onClick={() => { setTab('manage'); setError(''); }}>Manage</button>
-      </div>
-      {tab === 'manage' ? <>
-        <p className="muted">Use your recovery file to replace keys or delete your office. A viewer key cannot make these changes.</p>
-        <label>Recovery file<input type="file" accept=".json,application/json" onChange={e => void importRecovery(e.target.files?.[0])} /></label>
-        <label>Office ID<input value={officeId} onChange={e => setOfficeId(e.target.value)} /></label>
-        <label>Recovery key<input value={ownerKey} onChange={e => setOwnerKey(e.target.value)} type="password" autoComplete="off" /></label>
-        <p className="muted">Replacing keys stops all old connections. Download the new files and pair your coding clients again.</p>
-        <button className="secondary full" disabled={busy || !officeId || !ownerKey} onClick={() => void manage(false)}>Replace all keys</button>
-        <details className="delete-office"><summary>Delete this office</summary><p>This permanently removes its activity and keys. It does not change your coding projects.</p><label>Type DELETE to confirm<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" /></label><button className="secondary full" disabled={busy || !officeId || !ownerKey || confirmation !== 'DELETE'} onClick={() => void manage(true)}>Delete office permanently</button></details>
-        {error && <p className="form-error" role="alert">{error}</p>}
-      </> : <form onSubmit={e => { e.preventDefault(); void connect(); }}>
-        {tab === 'new' ? needsInvite ? <label>Invite code<input value={invite} onChange={e => setInvite(e.target.value)} placeholder="Enter your invite" required type="password" autoComplete="off" /></label> : <p className="muted">No invite or coding account password needed. Save your recovery file to keep access.</p> : <>
-          <label>Recovery file <span className="muted">· fill the fields for me</span><input type="file" accept=".json,application/json" onChange={e => void importRecovery(e.target.files?.[0])} /></label>
-          <label>Office ID<input value={officeId} onChange={e => setOfficeId(e.target.value)} required /></label>
-          <label>Viewer or recovery key<input value={viewerKey} onChange={e => setViewerKey(e.target.value)} type="password" required autoComplete="off" /></label>
-        </>}
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary full" disabled={busy || (tab === 'new' && (!health || !health.registration))}>{busy ? 'Making room…' : tab === 'new' ? 'Create my office' : 'Open my office'}<ArrowRight size={16} /></button>
-      </form>}
-      <div className="privacy-note"><span>⌁</span><p>Only activity metadata leaves your machine. Prompts, source code, command arguments, and tool output stay local.</p></div>
-    </> : <>
-      <p className="muted">Your office is ready. Save both files, then follow the short setup guide.</p>
-      <div className="setup-step"><b>1</b><div><strong>Save your recovery file</strong><p>Keep this private. It opens your office and lets you replace keys or delete it. There is no email reset.</p><button className="secondary" onClick={() => downloadConfig(true)}><Download size={15} /> {savedRecovery ? 'Recovery file saved ✓' : 'Recovery file'}</button></div></div>
-      <div className="setup-step"><b>2</b><div><strong>Pair your computer</strong><p>Use this file with the setup command in the guide. Codex and Claude share the same connection.</p><button className="secondary" onClick={() => downloadConfig()}><Download size={15} /> Connection file</button></div></div>
-      <div className="setup-step"><b>3</b><div><strong>Add the observer</strong><p>The guide has the install commands for both clients. Prefer a ZIP? Each one includes instructions.</p><div className="button-row"><a className="secondary" href="/plugins/codex.zip" download><Download size={14} /> Codex</a><a className="secondary" href="/plugins/claude.zip" download><Download size={14} /> Claude Code</a></div></div></div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary full" disabled={!savedRecovery} onClick={onClose}>Step into my office <ArrowRight size={16} /></button>
-    </>}
-    <p className="muted"><a href="/setup.html" target="_blank" rel="noreferrer">Simple setup guide ↗</a> · <a href="/privacy.html" target="_blank" rel="noreferrer">What we store ↗</a></p>
-  </dialog>;
+  const canCreate = health?.publicSignup || health?.storage === 'local';
+  const foot = <p className="ui-note"><a href="/setup.html" target="_blank" rel="noreferrer">Setup guide ↗</a> · <a href="/privacy.html" target="_blank" rel="noreferrer">What we store ↗</a> · Only activity metadata leaves your machine.</p>;
+  const alert = error && <p className="ui-alert" role="alert">{error}</p>;
+  if (keys) return <Modal eyebrow="Make yourself at home" title="Your office is ready" onClose={close} foot={<><button className="ui-btn primary full big" disabled={!savedRecovery} onClick={onClose}>Step into my office <ArrowRight size={16} /></button>{foot}</>}>
+    <ol className="ui-steps">
+      <li><div><strong>Save your recovery file</strong><p>Keep it private. It opens your office and lets you replace keys or delete it. There is no email reset.</p><div className="ui-row"><button className="ui-btn small" onClick={() => downloadConfig(true)}><Download size={14} /> {savedRecovery ? 'Saved ✓' : 'Recovery file'}</button></div></div></li>
+      <li><div><strong>Pair your computer</strong><p>Use this file with the setup command in the guide. Codex and Claude Code share it.</p><div className="ui-row"><button className="ui-btn small" onClick={() => downloadConfig()}><Download size={14} /> Connection file</button></div></div></li>
+      <li><div><strong>Add the observer</strong><p>The guide has the install commands. Prefer a ZIP? Each includes instructions.</p><div className="ui-row"><a className="ui-btn small" href="/plugins/codex.zip" download><Download size={14} /> Codex</a><a className="ui-btn small" href="/plugins/claude.zip" download><Download size={14} /> Claude Code</a></div></div></li>
+    </ol>
+    {alert}
+  </Modal>;
+  return <Modal eyebrow="Make yourself at home" title="Bring your agents in" onClose={close} foot={foot}
+    tabs={<Tabs label="Office options" value={tab} onChange={t => { setTab(t); setError(''); }} options={[...(canCreate ? [['new', 'New office'] as ['new', string]] : []), ['existing', 'Open office'], ['manage', 'Manage']]} />}>
+    {tab === 'manage' ? <>
+      <p>Use your recovery file to replace keys or delete your office. A viewer key can’t do this.</p>
+      <label className="ui-field">Recovery file<input type="file" accept=".json,application/json" onChange={e => void importRecovery(e.target.files?.[0])} /></label>
+      <div className="ui-fields-2"><label className="ui-field">Office ID<input value={officeId} onChange={e => setOfficeId(e.target.value)} /></label>
+        <label className="ui-field">Recovery key<input value={ownerKey} onChange={e => setOwnerKey(e.target.value)} type="password" autoComplete="off" /></label></div>
+      <p className="ui-note">Replacing keys stops all old connections. Download the new files and pair your computers again.</p>
+      <button className="ui-btn full" disabled={busy || !officeId || !ownerKey} onClick={() => void manage(false)}>Replace all keys</button>
+      <section className="ui-card danger"><h3>Delete this office</h3><p>Permanently removes its activity and keys. Your code isn’t touched.</p>
+        <label className="ui-field">Type DELETE to confirm<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" /></label>
+        <button className="ui-btn danger full" disabled={busy || !officeId || !ownerKey || confirmation !== 'DELETE'} onClick={() => void manage(true)}>Delete office permanently</button></section>
+      {alert}
+    </> : <form className="ui-stack" onSubmit={e => { e.preventDefault(); void connect(); }}>
+      {tab === 'new' ? <>
+        <p>Anyone can have a little office. It starts private; connect Codex, Claude Code, or both.</p>
+        {needsInvite ? <label className="ui-field">Invite code<input value={invite} onChange={e => setInvite(e.target.value)} placeholder="Enter your invite" required type="password" autoComplete="off" /></label>
+          : <p className="ui-note">No invite or password needed. Save your recovery file to keep access.</p>}
+        <p className="ui-note">☀️ Office clock: {localTimeZone().replaceAll('_', ' ')}. Day and night follow it.</p>
+      </> : <>
+        <label className="ui-field">Recovery file <small>fills in the fields for you</small><input type="file" accept=".json,application/json" onChange={e => void importRecovery(e.target.files?.[0])} /></label>
+        <div className="ui-fields-2"><label className="ui-field">Office ID<input value={officeId} onChange={e => setOfficeId(e.target.value)} required /></label>
+          <label className="ui-field">Viewer or recovery key<input value={viewerKey} onChange={e => setViewerKey(e.target.value)} type="password" required autoComplete="off" /></label></div>
+      </>}
+      {alert}
+      <button className="ui-btn primary full big" disabled={busy || (tab === 'new' && (!health || !health.registration))}>{busy ? 'Making room…' : tab === 'new' ? 'Create my office' : 'Open my office'}<ArrowRight size={16} /></button>
+    </form>}
+  </Modal>;
 }

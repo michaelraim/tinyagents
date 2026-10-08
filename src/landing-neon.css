@@ -5,7 +5,7 @@
   min-height: 100vh; background: #0d0b1f; color: var(--text); font-family: 'Nunito Sans', system-ui, sans-serif; overflow-x: hidden;
 }
 .ln a { color: inherit; }
-.ln-logo { font: 700 26px/1 var(--px); text-decoration: none; filter: drop-shadow(0 0 10px #ff4fd866); }
+.ln-logo, .ln-nav .ln-logo { font: 700 26px/1 var(--px); text-decoration: none; filter: drop-shadow(0 0 10px #ff4fd866); }
 .ln-logo b { color: #fff; }
 .ln-logo span { background: linear-gradient(90deg, var(--gold), var(--pink) 45%, var(--violet) 70%, var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .ln-logo.small { font-size: 18px; }

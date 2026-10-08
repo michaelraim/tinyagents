@@ -10,7 +10,7 @@ import type { Agent, AgentState } from '../../shared/protocol';
 
 export type Mood = 'work' | 'ask' | 'stuck' | 'celebrate' | 'break' | 'doze' | 'leave';
 export type Action =
-  | 'type' | 'think' | 'read' | 'test' | 'wave' | 'stuck' | 'doze' | 'celebrate'
+  | 'type' | 'think' | 'read' | 'test' | 'wave' | 'stuck' | 'doze' | 'celebrate' | 'relax'
   | 'coffee' | 'sip' | 'lounge' | 'play-pong' | 'play-arcade' | 'chat' | 'pace' | 'gaze' | 'phone' | 'walk' | 'idle';
 
 export type Bubble = { text: string; at: number; tone: 'say' | 'emote' | 'alert' };
@@ -33,6 +33,8 @@ export type Body = Point & {
   npc?: boolean;
   /** Seconds in the current phase. */
   timer: number;
+  /** Seconds a walker has been held up by others. */
+  blocked: number;
   /** When the current errand should end. */
   dwell: number;
   /** Seconds since the mood last changed. */
@@ -63,19 +65,34 @@ const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
  * - "Needs you" never times out: an unanswered prompt is still unanswered.
  * - A long-running tool (a build, a test suite) keeps them busy for up to 30 minutes.
  * - Otherwise five minutes of silence means we've lost the signal: they doze off.
- * - Idle or finished for half an hour: they go home, and walk back in when work resumes.
+ * - Half an hour without a word (idle, finished, or a session that died mid-task):
+ *   they go home, and walk back in when work resumes.
  */
 export function moodOf(agent: Agent, now: number): Mood {
   const quiet = now - agent.at;
-  const silent = quiet > (Object.keys(agent.tools ?? {}).length ? 6 * STALE_AFTER : STALE_AFTER);
+  const busyTool = Object.keys(agent.tools ?? {}).length > 0;
+  const silent = quiet > (busyTool ? 6 * STALE_AFTER : STALE_AFTER);
+  if (agent.state === 'offline' || (agent.state !== 'waiting' && quiet > Math.max(GO_HOME_AFTER, busyTool ? 6 * STALE_AFTER : 0))) return 'leave';
   switch (agent.state) {
-    case 'offline': return 'leave';
-    case 'idle': return quiet > GO_HOME_AFTER ? 'leave' : 'break';
-    case 'done': return quiet > GO_HOME_AFTER ? 'leave' : quiet < 6000 ? 'celebrate' : 'break';
+    case 'idle': return 'break';
+    case 'done': return quiet < 6000 ? 'celebrate' : 'break';
     case 'waiting': return 'ask';
     case 'blocked': return silent ? 'doze' : 'stuck';
     default: return silent ? 'doze' : 'work';
   }
+}
+
+/** Long enough to walk out of the front door from the far end of the building. */
+const WALK_OUT = 3 * 60_000;
+/**
+ * Whether an agent still has a desk in the office: anyone who hasn't gone home, plus
+ * those who left in the last few minutes (so they can walk out). Rooms are sized
+ * for these people only, not for every session the office has seen today.
+ */
+export function onSite(agent: Agent, now: number) {
+  if (moodOf(agent, now) !== 'leave') return true;
+  const left = agent.state === 'offline' ? agent.at : agent.at + GO_HOME_AFTER;
+  return now - left < WALK_OUT;
 }
 
 const workAction: Partial<Record<AgentState, Action>> = { coding: 'type', thinking: 'think', reading: 'read', testing: 'test' };
@@ -154,7 +171,8 @@ export class World {
       body.seat = seat;
       if (body.state !== agent.state) {
         body.state = agent.state;
-        this.say(body, pick(lines[agent.state] ?? ['…'], this.random()), now, agent.state === 'waiting' ? 'alert' : 'say');
+        // Bubbles live on the animation clock, not the office's wall clock.
+        this.say(body, pick(lines[agent.state] ?? ['…'], this.random()), performance.now(), agent.state === 'waiting' ? 'alert' : 'say');
       }
       if (body.mood !== mood) this.changeMood(body, mood, now);
     }
@@ -166,12 +184,13 @@ export class World {
     const seed = hash(agent.key);
     const body: Body = {
       key: agent.key, x: seat.x, z: seat.z, angle: seat.facing, speed: 0, phase: 'seated', mood, action: 'idle',
-      seat, path: [], goal: { kind: 'seat' }, timer: 0, dwell: 0, moodAge: 0, seed, visible: 1, state: agent.state,
+      seat, path: [], goal: { kind: 'seat' }, timer: 0, blocked: 0, dwell: 0, moodAge: 0, seed, visible: 1, state: agent.state,
     };
     if (mood === 'leave') { body.phase = 'gone'; body.visible = 0; return body; }
     if (this.started) {
-      // Newcomers walk in through the front door.
-      Object.assign(body, { x: this.building.entrance.x, z: this.building.entrance.z, visible: 0, carry: 'box' });
+      // Newcomers walk in through the front door; brand-new hires carry their things.
+      const hired = Date.now() - agent.joinedAt < 2 * 60_000;
+      Object.assign(body, { x: this.building.entrance.x, z: this.building.entrance.z, visible: 0, carry: hired ? 'box' : undefined });
       this.go(body, { kind: 'seat' });
       this.say(body, pick(lines.arrive, seed), performance.now(), 'say');
     }
@@ -302,7 +321,8 @@ export class World {
       case 'stuck': body.action = 'stuck'; break;
       case 'doze': body.action = 'doze'; break;
       case 'celebrate': body.action = 'celebrate'; break;
-      case 'break': body.action = body.timer > 20 ? 'phone' : 'idle'; break;
+      // On a break at the desk: lean back from the screen, then scroll the phone.
+      case 'break': body.action = body.timer > 20 ? 'phone' : 'relax'; break;
       default: body.action = 'idle';
     }
   }
@@ -359,17 +379,28 @@ export class World {
     const pace = (body.goal.kind === 'exit' ? 1.6 : WALK_SPEED) * (0.9 + body.seed * 0.25);
     const step = Math.min(len, pace * dt);
     let nx = body.x + (dx / len) * step, nz = body.z + (dz / len) * step;
-    // Gentle side-step around other walkers (never into walls).
-    for (const other of bodies) {
-      if (other === body || other.phase === 'gone' || other.phase === 'seated') continue;
-      const ox = nx - other.x, oz = nz - other.z, d = Math.hypot(ox, oz);
-      if (d > 0.001 && d < 0.75) {
-        const push = (0.75 - d) * 0.5;
-        const px = nx + (ox / d) * push, pz = nz + (oz / d) * push;
+    // Side-step around other walkers (never into walls). Only sideways: pushing back
+    // along the path deadlocks two people meeting head-on in a doorway. Anyone held up
+    // for a moment just squeezes past.
+    if (body.blocked < 0.8 && len > 0.4) {
+      const fx = dx / len, fz = dz / len;
+      for (const other of bodies) {
+        if (other === body || other.phase === 'gone' || other.phase === 'seated') continue;
+        const ox = nx - other.x, oz = nz - other.z, d = Math.hypot(ox, oz);
+        if (d >= 0.75) continue;
+        const ahead = ox * fx + oz * fz;
+        if (ahead > 0.05) continue; // they're behind us: their problem
+        // Sidestep to whichever side they already lean towards (or a stable pick when dead on).
+        const lean = ox * fz - oz * fx;
+        const sign = Math.abs(lean) > 0.01 ? Math.sign(lean) : body.seed > 0.5 ? 1 : -1;
+        const push = (0.75 - d) * 0.35 * Math.min(1, step / 0.02);
+        const px = nx + fz * sign * push, pz = nz - fx * sign * push;
         if (this.walkable({ x: px, z: pz })) { nx = px; nz = pz; }
       }
     }
-    body.speed = Math.hypot(nx - body.x, nz - body.z) / Math.max(dt, 1e-4);
+    const moved = Math.hypot(nx - body.x, nz - body.z);
+    body.blocked = moved < step * 0.4 ? body.blocked + dt : Math.max(0, body.blocked - dt * 0.5);
+    body.speed = moved / Math.max(dt, 1e-4);
     body.x = nx; body.z = nz;
     const heading = Math.atan2(dx, dz);
     body.angle += Math.atan2(Math.sin(heading - body.angle), Math.cos(heading - body.angle)) * (1 - Math.exp(-dt * 10));
@@ -452,7 +483,7 @@ export class World {
       const spot = seats[n++];
       this.release(b);
       this.go(b, { kind: 'spot', spot }, 20 + this.random() * 15);
-      this.say(b, pick(say, this.random()), performance.now(), 'emote');
+      if (n <= 4) this.say(b, pick(say, this.random()), performance.now(), 'emote');
     }
     return n;
   }
@@ -463,7 +494,7 @@ export class World {
     const body: Body = {
       key, x: e.x, z: e.z, angle: Math.PI, speed: 0, phase: 'walking', mood: 'work', action: 'walk',
       seat: { x: e.x, z: e.z, facing: 0, desk: e, podId: 'npc:pod:0', agent: undefined as unknown as Agent },
-      path: [], goal: { kind: 'seat' }, timer: 0, dwell, moodAge: 0, seed: hash(key), visible: 0, state: 'coding', npc: true, carry,
+      path: [], goal: { kind: 'seat' }, timer: 0, blocked: 0, dwell, moodAge: 0, seed: hash(key), visible: 0, state: 'coding', npc: true, carry,
     };
     this.bodies.set(key, body);
     this.go(body, { kind: 'point', x, z, facing, action: 'idle' }, dwell);

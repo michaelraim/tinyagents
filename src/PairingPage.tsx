@@ -28,32 +28,37 @@ export default function PairingPage() {
   }
   async function approve() { await action(async () => { await accountRequest('/api/pairing/approve', { code }); await refresh(); await account.refresh(); }); }
   const connected = pair?.status === 'connected', approved = pair?.status === 'approved';
-  return <main className="pairing-page">
-    <a className="pairing-brand" href="/"><img src="/favicon.svg" alt=""/><BrandWordmark/></a>
-    <section className={`pairing-card ${connected ? 'is-connected' : ''}`} aria-labelledby="pairing-title">
-      <div className="pairing-scene" aria-hidden="true"><span className="pairing-person">⌘</span><span className="pairing-dots">•••</span><span className="pairing-house">{connected ? '🎉' : '🏡'}</span><span className="pairing-dots">•••</span><span className="pairing-person claude">✳</span></div>
-      <p className="eyebrow">{connected ? 'YOUR CREW HAS THE KEYS' : 'A LITTLE OFFICE. ONE QUICK HELLO.'}</p>
-      <h1 id="pairing-title">{connected ? 'You’re home.' : approved ? 'Making room for your crew…' : 'Give this computer a desk.'}</h1>
-      {!valid || expired ? <><p>This connection link has expired or is incomplete.</p><p>Ask your coding agent <strong>“connect tinyAGENTS”</strong> for a fresh link.</p><a className="secondary full" href="/setup.html">Setup help</a></> : account.loading ? <p role="status">Checking in at reception…</p> : account.unavailable ? <><p>Reception is taking a moment.</p><button className="primary full" onClick={() => void account.refresh()}>Try again</button></> : !account.user ? <>
-        <p>Sign in once. We’ll find your office—or make you a new one.</p>
-        <div className="social-logins">{(['github', 'gitlab'] as const).map(provider => <button className={`social-login ${provider}`} disabled={busy || !account.providers[provider]} key={provider} onClick={() => void signIn(provider)}>{provider === 'github' ? <Github size={22}/> : <Gitlab size={22}/>}<span>Continue with {provider === 'github' ? 'GitHub' : 'GitLab'}</span><ArrowRight size={18}/></button>)}</div>
-        {!account.providers.github && !account.providers.gitlab && <p>Sign-in is being set up. Please try again soon.</p>}
-        <p className="account-fine">Just your profile and email. No repository access.</p>
+  return <main className="ui ui-page">
+    <a className="ui-page-brand" href="/"><img src="/favicon.svg" alt=""/><BrandWordmark/></a>
+    <section className={`ui-page-card ${connected ? 'done' : ''}`} aria-labelledby="pairing-title">
+      <div className="ui-page-scene" aria-hidden="true"><span>💻</span><span>•••</span><span>{connected ? '🎉' : '🏢'}</span></div>
+      <span className="ui-eyebrow">{connected ? 'Your crew has the keys' : 'One quick hello'}</span>
+      <h1 id="pairing-title" className="ui-title">{connected ? 'You’re home.' : approved ? 'Making room for your crew…' : 'Give this computer a desk'}</h1>
+      {!valid || expired ? <><p>This connection link has expired or is incomplete. Ask your coding agent <strong>“connect tinyAGENTS”</strong> for a fresh one.</p><a className="ui-btn full" href="/setup.html">Setup help</a></>
+      : account.loading ? <p role="status">Checking in at reception…</p>
+      : account.unavailable ? <><p>Reception is taking a moment.</p><button className="ui-btn primary full" onClick={() => void account.refresh()}>Try again</button></>
+      : !account.user ? <>
+        <p>Sign in once. We’ll find your office, or make you a new one.</p>
+        <div className="ui-social">{(['github', 'gitlab'] as const).map(provider => <button disabled={busy || !account.providers[provider]} key={provider} onClick={() => void signIn(provider)}>{provider === 'github' ? <Github size={22}/> : <Gitlab size={22}/>}<span>Continue with {provider === 'github' ? 'GitHub' : 'GitLab'}</span><ArrowRight size={18}/></button>)}</div>
+        {!account.providers.github && !account.providers.gitlab && <p className="ui-note">Sign-in is being set up. Please try again soon.</p>}
+        <p className="ui-note">Just your profile and email. No repository access.</p>
       </> : connected ? <>
-        <div className="pairing-computer"><span className="connected-check"><Check size={25}/></span><div><strong>{pair.name}</strong><small>Connected to {account.user.name}’s office</small></div></div>
-        <p>Start a task in Codex or Claude Code. Your agents will move in as they work.</p><a className="primary full" href="/office">Step into my office <ArrowRight size={18}/></a>
-        <p className="account-fine">Both plugins share this connection. You can close this tab.</p>
+        <div className="ui-item"><span className="ui-avatar"><Check size={20}/></span><div><b>{pair.name}</b><small>Connected to {account.user.name}’s office</small></div></div>
+        <p>Start a task in Codex or Claude Code. Your agents move in as they work.</p>
+        <a className="ui-btn primary full big" href="/office">Step into my office <ArrowRight size={18}/></a>
+        <p className="ui-note">Both plugins share this connection. You can close this tab.</p>
       </> : pair ? <>
-        <div className="pairing-computer"><Monitor size={28}/><div><strong>{pair.name}</strong><small>{pair.provider === 'codex' ? 'Codex' : pair.provider === 'claude' ? 'Claude Code' : 'Codex + Claude Code'} · connection {code.slice(0, 6)} {code.slice(6)}</small></div></div>
-        {approved ? <><p role="status" className="pairing-wait">Waiting for the plugin to save your connection…</p><p className="account-fine">Keep the coding app running. This usually takes a few seconds.</p></> : <>
-          <p>Connect to <strong>{account.user.name}’s office</strong>. Both plugins on this computer can send agent activity here.</p>
-          <button className="primary full" disabled={busy} onClick={() => void approve()}>{busy ? 'Connecting…' : 'Connect this computer'} <ArrowRight size={17}/></button>
-          <p className="account-fine">Approve only if you just installed or connected tinyAGENTS on this computer.</p>
-          <button className="text-button" disabled={busy} onClick={() => void action(async () => { await accountRequest('/api/auth/sign-out'); await account.refresh(); setPair(undefined); })}>Use a different account</button>
+        <div className="ui-item"><span className="ui-avatar"><Monitor size={20}/></span><div><b>{pair.name}</b><small>{pair.provider === 'codex' ? 'Codex' : pair.provider === 'claude' ? 'Claude Code' : 'Codex + Claude Code'} · code {code.slice(0, 6)} {code.slice(6)}</small></div></div>
+        {approved ? <><p role="status" className="ui-ok">Waiting for the plugin to save your connection…</p><p className="ui-note">Keep the coding app running. This usually takes a few seconds.</p></> : <>
+          <p>Connect to <strong>{account.user.name}’s office</strong>. Both plugins on this computer can then report agent activity here.</p>
+          <button className="ui-btn primary full big" disabled={busy} onClick={() => void approve()}>{busy ? 'Connecting…' : 'Connect this computer'} <ArrowRight size={17}/></button>
+          <p className="ui-note">Approve only if you just installed or connected tinyAGENTS on this computer.</p>
+          <button className="ui-btn ghost" disabled={busy} onClick={() => void action(async () => { await accountRequest('/api/auth/sign-out'); await account.refresh(); setPair(undefined); })}>Use a different account</button>
         </>}
       </> : <p role="status">Finding your computer…</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="pairing-privacy"><ShieldCheck size={15}/> Your office starts private. <a href="/privacy.html">What we store</a></p>
-    </section><p className="pairing-footer">Small crew. Big things.</p>
+      {error && <p className="ui-alert" role="alert">{error}</p>}
+      <p className="ui-note"><ShieldCheck size={13}/> Your office starts private. <a href="/privacy.html">What we store</a></p>
+    </section>
+    <p className="ui-page-foot">Small people. Big ideas.</p>
   </main>;
 }

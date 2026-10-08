@@ -19,7 +19,7 @@ export function lookFor(agent: Agent, lead: boolean): Look {
   };
 }
 
-const SEATED = new Set(['type', 'think', 'read', 'test', 'stuck', 'doze', 'idle', 'phone', 'sip', 'lounge']);
+const SEATED = new Set(['type', 'think', 'read', 'test', 'stuck', 'doze', 'idle', 'relax', 'phone', 'sip', 'lounge']);
 const MUG = new Set(['coffee', 'sip', 'chat', 'gaze']);
 /** Characters are scaled a little smaller than the furniture so they sit at desks believably. */
 const CHARACTER_SCALE = 1.42;
@@ -60,6 +60,7 @@ function poseFor(action: string, t: number, reaction?: string, rt = 0, carry?: s
     case 'stuck': return { 'arm-right': [0, 0.9, -1.15], 'arm-left': [0, -0.9, 1.15], head: [0.35, Math.sin(t * 2.6) * 0.3, 0], torso: [0.25, 0, 0] };
     case 'doze': return { 'arm-right': [0, 1.2, 0.6], 'arm-left': [0, -1.2, -0.6], head: [0.6, 0, 0.25], torso: [0.35, 0, 0] };
     case 'celebrate': return { 'arm-right': [0, 0.2, -1.35 + Math.sin(t * 14) * 0.2], 'arm-left': [0, -0.2, 1.35 - Math.sin(t * 14) * 0.2] };
+    case 'relax': return { 'arm-right': [0, -0.35, -1.25], 'arm-left': [0, 0.35, 1.25], head: [-0.25, 0, 0], torso: [-0.22, 0, 0] };
     case 'phone': return { 'arm-right': [0, 1.2, 0.2], 'arm-left': [0, -1.2, -0.2], head: [0.35, 0, 0] };
     case 'coffee': case 'sip': case 'gaze': {
       const sip = Math.sin(t * 0.9) > 0.55;
@@ -77,7 +78,7 @@ const gemColor: Record<string, string> = {
   type: '#46e08a', read: '#46e08a', test: '#3ee8ff', think: '#b06bff', pace: '#b06bff',
   wave: '#ffb020', stuck: '#ff4f6d', doze: '#7a7f99', celebrate: '#ffd23f',
 };
-const GEM_HIDDEN = new Set(['walk', 'idle', 'lounge', 'coffee', 'sip', 'chat', 'gaze', 'phone', 'play-pong', 'play-arcade']);
+const GEM_HIDDEN = new Set(['walk', 'idle', 'relax', 'lounge', 'coffee', 'sip', 'chat', 'gaze', 'phone', 'play-pong', 'play-arcade']);
 
 function box(w: number, h: number, d: number, color: string, glow = false) {
   const mesh = new Mesh(roundedBox(0.3), mat(color, glow ? { emissive: color, glow: 0.4, rough: 0.4 } : { rough: 0.6 }));
@@ -121,6 +122,7 @@ export function Person({ agent, look, world, onSelect, onPoke }: {
   const root = useRef<Group>(null);
   const bounce = useRef<Group>(null);
   const gem = useRef<Group>(null);
+  const turn = useRef(0);
   const gemMaterial = useMemo(() => mat('#46e08a', { emissive: '#46e08a', glow: 1.2, rough: 0.2 }).clone(), []);
   const mug = useRef<Group>(null), phone = useRef<Group>(null), cookie = useRef<Group>(null);
   const zzz = useRef<Group>(null);
@@ -164,7 +166,10 @@ export function Person({ agent, look, world, onSelect, onPoke }: {
     const sofaOffset = atSofa && b.goal.kind === 'spot' ? b.goal.spot.back : 0;
     const back = b.angle + Math.PI, off = standOffset + sofaOffset;
     g.position.set(b.x + Math.sin(back) * off, 0, b.z + Math.cos(back) * off);
-    g.rotation.y = b.angle;
+    // Not working: the chair swivels away from the screen.
+    const swivel = b.phase === 'seated' && (b.action === 'relax' || b.action === 'phone') ? (b.seed > 0.5 ? 0.7 : -0.7) : 0;
+    turn.current += (swivel - turn.current) * (1 - Math.exp(-dt * 4));
+    g.rotation.y = b.angle + turn.current;
 
     // Pop in on arrival; squash and stretch on reactions.
     const reacting = b.reaction && performance.now() - b.reaction.at < 1400 ? b.reaction : undefined;

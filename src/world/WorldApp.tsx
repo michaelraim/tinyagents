@@ -302,10 +302,9 @@ export default function WorldApp() {
     <Suspense fallback={null}>
       {connectOpen && <ConnectDialog onClose={() => setConnectOpen(false)} onConnect={id => { office.enterLive(id); setSelected(undefined); }}
         onDeleted={id => { if (id === office.officeId) office.forgetOffice(); setSelected(undefined); }} />}
-      {panel === 'friends' && <div className="ta-friends"><FriendsPanel accountOwned={!!account.user && account.officeId === office.officeId} book={book} officeId={office.officeId}
+      {panel === 'friends' && <FriendsPanel accountOwned={!!account.user && account.officeId === office.officeId} book={book} officeId={office.officeId}
         visitId={office.mode === 'visit' ? office.visitId : ''} onVisit={id => { office.visit(id); setPanel(null); setSelected(undefined); }} onHome={goHome}
-        onConnect={() => setConnectOpen(true)} onClose={() => setPanel(null)} neighborhoodOn={neighborsOn} onNeighborhood={setNeighborsOn}
-        onHangout={() => { /* Neighbours meet in the shared café and lounge on their own. */ }} designs={{}} now={now} /></div>}
+        onConnect={() => setConnectOpen(true)} onClose={() => setPanel(null)} neighborhoodOn={neighborsOn} onNeighborhood={setNeighborsOn} designs={{}} now={now} />}
     </Suspense>
 
     {!agents.length && office.mode !== 'demo' && <div className="hud-empty hud-panel">

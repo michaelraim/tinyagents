@@ -1,13 +1,8 @@
 import { createRoot } from 'react-dom/client';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import './styles.css';
-import './tycoon.css';
-import './campus.css';
-import './brand-theme.css';
 import { AccountProvider } from './AccountContext';
-import './account.css';
 import './world/world.css';
-import './dialogs-neon.css';
+import './ui.css';
 const Landing=lazy(()=>import('./Landing'));
 const PairingPage=lazy(()=>import('./PairingPage'));
 const WorldApp=lazy(()=>import('./world/WorldApp'));

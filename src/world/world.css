@@ -14,8 +14,6 @@
 .ta-world canvas { touch-action: none; }
 .ta-world-embed canvas { touch-action: pan-y; }
 :where(.ta-world) button { font: inherit; color: inherit; cursor: pointer; }
-.ta-friends { position: absolute; top: 120px; left: 190px; z-index: 40; max-height: calc(100% - 330px); overflow: auto; }
-.ta-friends > * { position: static !important; }
 
 /* ---------- Inspector fields (used inside the HUD panels) ---------- */
 .ta-harness.claude { color: #ff9d7a; }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { planBuilding, emptyMemory, type Building } from '../../shared/building';
 import { projectsOf, sameSession, type Agent, type OfficeState } from '../../shared/protocol';
-import { World } from './sim';
+import { World, onSite } from './sim';
 
 export type Role = 'lead' | 'sub' | 'solo';
 
@@ -16,8 +16,11 @@ export function rolesOf(agents: Agent[]) {
 
 /** Plans the building, runs the life simulation and tracks state timers for one office. */
 export function useLiveWorld(office: OfficeState, now: number) {
-  const agents = office.agents;
-  const projects = useMemo(() => projectsOf(office), [office]);
+  // Only people who are around (or just leaving) get a desk; sessions that went quiet
+  // long ago stay in the office's records but not in the building.
+  const presence = office.agents.filter(a => onSite(a, now)).map(a => a.key).join(',');
+  const agents = useMemo(() => office.agents.filter(a => onSite(a, now)), [office, presence]);
+  const projects = useMemo(() => projectsOf({ ...office, agents }), [agents]);
   // Re-plan only when membership changes, not on every state change.
   const memory = useRef(emptyMemory());
   const signature = projects.map(p => `${p.id}:${p.name}:${p.agents.map(a => `${a.key}>${a.parentAgentId ?? ''}`).join(',')}`).join('|');
